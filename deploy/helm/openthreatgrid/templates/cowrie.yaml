@@ -74,7 +74,7 @@ spec:
             {{- toYaml .Values.cowrie.resources | nindent 12 }}
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 999   # the cowrie user inside the image owns var/lib/cowrie
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
