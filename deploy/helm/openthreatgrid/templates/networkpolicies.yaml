@@ -91,7 +91,7 @@ spec:
       ports:
         - { protocol: TCP, port: 5432 }
 ---
-# Redis: ingress from Worker + Cowrie (parser sidecar) only.
+# Redis: ingress from Worker + Cowrie (parser sidecar) + API (/ready ping).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -105,6 +105,7 @@ spec:
     - from:
         - podSelector: { matchLabels: { app: otg-worker } }
         - podSelector: { matchLabels: { app: cowrie } }
+        - podSelector: { matchLabels: { app: otg-api } }
       ports:
         - { protocol: TCP, port: 6379 }
 ---
