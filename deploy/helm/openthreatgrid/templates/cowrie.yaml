@@ -10,6 +10,7 @@ data:
     [honeypot]
     hostname = srv-web-01
     sensor_name = {{ .Values.cowrie.sensorId }}
+    log_path = /cowrie/var/log/cowrie
 
     [ssh]
     enabled = true
@@ -49,6 +50,7 @@ spec:
         app: cowrie
     spec:
       securityContext:
+        fsGroup: 999
         seccompProfile:
           type: RuntimeDefault
       initContainers:

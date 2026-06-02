@@ -17,6 +17,9 @@ spec:
         otg-role: sensor
     spec:
       securityContext:
+        # cowrie writes the JSON log to the shared emptyDir as uid 999; fsGroup
+        # makes the volume group-writable and lets the parser (uid 10001) read it.
+        fsGroup: 999
         seccompProfile:
           type: RuntimeDefault
       initContainers:

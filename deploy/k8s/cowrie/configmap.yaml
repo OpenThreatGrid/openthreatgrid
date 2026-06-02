@@ -11,6 +11,8 @@ data:
     [honeypot]
     hostname = srv-web-01
     sensor_name = cowrie-prod-01
+    # Write logs to the shared volume (mounted here) so the parser sidecar reads them.
+    log_path = /cowrie/var/log/cowrie
 
     [ssh]
     enabled = true
