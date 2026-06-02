@@ -8,6 +8,7 @@ spec:
   podSelector: {}
   policyTypes: [Ingress, Egress]
 ---
+# DNS egress for every pod (additive over default-deny).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -25,7 +26,112 @@ spec:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
 ---
+# API: ingress from worker/grafana/traefik; egress to Postgres + Redis.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: otg-api-allow
+spec:
+  podSelector:
+    matchLabels:
+      app: otg-api
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: otg-worker } }
+        - podSelector: { matchLabels: { app: grafana } }
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { app.kubernetes.io/name: traefik } }
+      ports:
+        - { protocol: TCP, port: 8000 }
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app: postgres } }
+      ports:
+        - { protocol: TCP, port: 5432 }
+    - to:
+        - podSelector: { matchLabels: { app: redis } }
+      ports:
+        - { protocol: TCP, port: 6379 }
+---
+# Worker (consumer): egress to Redis + API.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: otg-worker-allow
+spec:
+  podSelector:
+    matchLabels:
+      app: otg-worker
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app: redis } }
+      ports:
+        - { protocol: TCP, port: 6379 }
+    - to:
+        - podSelector: { matchLabels: { app: otg-api } }
+      ports:
+        - { protocol: TCP, port: 8000 }
+---
+# Postgres: ingress from API + Grafana only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-allow
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: otg-api } }
+        - podSelector: { matchLabels: { app: grafana } }
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
+# Redis: ingress from Worker + Cowrie (parser sidecar) only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-allow
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: otg-worker } }
+        - podSelector: { matchLabels: { app: cowrie } }
+      ports:
+        - { protocol: TCP, port: 6379 }
+---
+# Grafana: ingress from Traefik; egress to Postgres.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: grafana-allow
+spec:
+  podSelector:
+    matchLabels:
+      app: grafana
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { app.kubernetes.io/name: traefik } }
+      ports:
+        - { protocol: TCP, port: 3000 }
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app: postgres } }
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
 # CRITICAL: Cowrie has no outbound internet — only Redis (parser) + DNS.
+# Ingress allowed from Traefik for the honeypot ports.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -34,12 +140,17 @@ spec:
   podSelector:
     matchLabels:
       app: cowrie
-  policyTypes: [Egress]
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { app.kubernetes.io/name: traefik } }
+      ports:
+        - { protocol: TCP, port: 2222 }
+        - { protocol: TCP, port: 2223 }
   egress:
     - to:
-        - podSelector:
-            matchLabels:
-              app: redis
+        - podSelector: { matchLabels: { app: redis } }
       ports:
         - { protocol: TCP, port: 6379 }
     - to:
