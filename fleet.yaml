@@ -36,23 +36,20 @@ helm:
       auth:
         database: otg
         username: otg
-        # SECURITY: do NOT keep this default. Either edit here, or (preferred)
-        # supply it from a cluster Secret via the valuesFrom block below.
-        password: change-me-in-production
+        # password comes from the otg-fleet-values Secret (valuesFrom below)
     grafana:
       enabled: true
-      adminPassword: change-me-admin
+      # adminPassword comes from the otg-fleet-values Secret (valuesFrom below)
     reports:
       enabled: true
     networkPolicies:
       enabled: true
 
-  # PREFERRED: keep passwords out of git. Pre-create a Secret named
-  # "otg-fleet-values" (key values.yaml) in the openthreatgrid namespace
-  # containing the postgres/grafana passwords, then uncomment:
-  #
-  # valuesFrom:
-  #   - secretKeyRef:
-  #       name: otg-fleet-values
-  #       namespace: openthreatgrid
-  #       key: values.yaml
+  # Secrets (postgres/grafana passwords) are layered on top from a cluster
+  # Secret so they never live in Git. Create it first:
+  #   deploy/k8s/secrets/create-fleet-secret.sh
+  valuesFrom:
+    - secretKeyRef:
+        name: otg-fleet-values
+        namespace: openthreatgrid
+        key: values.yaml
