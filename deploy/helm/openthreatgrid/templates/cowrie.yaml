@@ -1,4 +1,36 @@
 {{- if .Values.cowrie.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cowrie-config
+  labels:
+    {{- include "otg.labels" . | nindent 4 }}
+data:
+  cowrie.cfg: |
+    [honeypot]
+    hostname = srv-web-01
+    sensor_name = {{ .Values.cowrie.sensorId }}
+
+    [ssh]
+    enabled = true
+    listen_endpoints = tcp:12222:interface=127.0.0.1
+    version = SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.1
+
+    [telnet]
+    enabled = true
+    listen_endpoints = tcp:12223:interface=127.0.0.1
+
+    [output_jsonlog]
+    enabled = true
+    logfile = ${honeypot:log_path}/cowrie.json
+    epoch_timestamp = false
+
+    [output_virustotal]
+    enabled = false
+
+    [output_malshare]
+    enabled = false
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,22 +49,67 @@ spec:
         app: cowrie
     spec:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        # Loopback routing so go-mmproxy transparent replies route back correctly.
+        - name: setup-routing
+          image: {{ include "otg.image" (dict "root" . "name" "mmproxy") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              ip rule add from 127.0.0.1/8 iif lo table 123 || true
+              ip route add local 0.0.0.0/0 dev lo table 123 || true
+          securityContext:
+            runAsUser: 0
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN"]
       containers:
         - name: cowrie
           image: {{ include "otg.image" (dict "root" . "name" .Values.cowrie.image) }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - { containerPort: 2222, name: ssh }
-            - { containerPort: 2223, name: telnet }
           resources:
             {{- toYaml .Values.cowrie.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           volumeMounts:
             - name: cowrie-logs
               mountPath: /cowrie/var/log/cowrie
+            - name: cowrie-config
+              mountPath: /cowrie/cowrie-git/etc/cowrie.cfg
+              subPath: cowrie.cfg
+        - name: mmproxy-ssh
+          image: {{ include "otg.image" (dict "root" . "name" "mmproxy") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["-l", "0.0.0.0:2222", "-4", "127.0.0.1:12222", "-p", "tcp"]
+          ports:
+            - { containerPort: 2222, name: ssh }
+          securityContext:
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN"]
+        - name: mmproxy-telnet
+          image: {{ include "otg.image" (dict "root" . "name" "mmproxy") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["-l", "0.0.0.0:2223", "-4", "127.0.0.1:12223", "-p", "tcp"]
+          ports:
+            - { containerPort: 2223, name: telnet }
+          securityContext:
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN"]
         - name: parser
           image: {{ include "otg.image" (dict "root" . "name" .Values.worker.image) }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -45,8 +122,10 @@ spec:
             - name: SENSOR_ID
               value: {{ .Values.cowrie.sensorId | quote }}
           securityContext:
-            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
             readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
           volumeMounts:
@@ -56,6 +135,9 @@ spec:
       volumes:
         - name: cowrie-logs
           emptyDir: {}
+        - name: cowrie-config
+          configMap:
+            name: cowrie-config
 ---
 apiVersion: v1
 kind: Service

@@ -36,9 +36,18 @@ else
 fi
 
 echo "==> Deploying HAProxy config (worker = ${WORKER_TS_IP})..."
+# This VPS's own Tailscale IP — used to bind the stats page Tailscale-only.
+VPS_TS_IP="$(tailscale ip -4 2>/dev/null | head -1)"
+if [[ -z "${VPS_TS_IP}" ]]; then
+  echo "Could not determine this VPS's Tailscale IP. Is 'tailscale up' done?" >&2
+  exit 1
+fi
+echo "    VPS Tailscale IP: ${VPS_TS_IP}"
+
 install -d -m 0755 /run/haproxy
-sed "s/<TAILSCALE_IP_WORKER>/${WORKER_TS_IP}/g" "$(dirname "$0")/haproxy.cfg" \
-  > /etc/haproxy/haproxy.cfg
+sed -e "s/<TAILSCALE_IP_WORKER>/${WORKER_TS_IP}/g" \
+    -e "s/<TAILSCALE_IP_DO_VPS>/${VPS_TS_IP}/g" \
+    "$(dirname "$0")/haproxy.cfg" > /etc/haproxy/haproxy.cfg
 haproxy -c -f /etc/haproxy/haproxy.cfg
 systemctl enable --now haproxy
 systemctl reload haproxy
@@ -53,6 +62,8 @@ ufw allow 2223/tcp comment 'cowrie telnet honeypot'
 ufw allow 443/tcp  comment 'traefik https'
 # Management SSH ONLY over the Tailscale interface.
 ufw allow in on tailscale0 to any port "${SSH_MGMT_PORT}" proto tcp comment 'mgmt ssh via tailscale'
+# HAProxy stats page ONLY over Tailscale.
+ufw allow in on tailscale0 to any port 8404 proto tcp comment 'haproxy stats via tailscale'
 ufw --force enable
 
 echo "==> Hardening SSH (key-only) and enabling auto-updates..."

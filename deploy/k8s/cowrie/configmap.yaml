@@ -1,0 +1,33 @@
+# Cowrie config, mounted over /cowrie/cowrie-git/etc/cowrie.cfg so config changes
+# don't require rebuilding the image. Cowrie listens on LOCALHOST high ports;
+# the go-mmproxy sidecars front 2222/2223 and restore the real attacker IP.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cowrie-config
+  namespace: openthreatgrid
+data:
+  cowrie.cfg: |
+    [honeypot]
+    hostname = srv-web-01
+    sensor_name = cowrie-prod-01
+
+    [ssh]
+    enabled = true
+    listen_endpoints = tcp:12222:interface=127.0.0.1
+    version = SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.1
+
+    [telnet]
+    enabled = true
+    listen_endpoints = tcp:12223:interface=127.0.0.1
+
+    [output_jsonlog]
+    enabled = true
+    logfile = ${honeypot:log_path}/cowrie.json
+    epoch_timestamp = false
+
+    [output_virustotal]
+    enabled = false
+
+    [output_malshare]
+    enabled = false

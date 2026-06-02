@@ -14,25 +14,32 @@ spec:
     metadata:
       labels:
         app: cowrie
-        # The parser sidecar shares this pod, so it is also app=cowrie AND
-        # app=otg-worker for NetworkPolicy selection (see redis-allow).
         otg-role: sensor
     spec:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        # Set up the loopback routing table so go-mmproxy's transparent replies
+        # from Cowrie are routed back through mmproxy (runs once in the pod netns).
+        - name: setup-routing
+          image: ghcr.io/openthreatgrid/mmproxy:main
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              ip rule add from 127.0.0.1/8 iif lo table 123 || true
+              ip route add local 0.0.0.0/0 dev lo table 123 || true
+          securityContext:
+            runAsUser: 0
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN"]
       containers:
-        # ── Honeypot ──────────────────────────────────────────────────
+        # ── Honeypot (localhost only; locked down) ────────────────────
         - name: cowrie
           image: ghcr.io/openthreatgrid/cowrie:main
           imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 2222
-              name: ssh
-            - containerPort: 2223
-              name: telnet
           resources:
             requests:
               cpu: "500m"
@@ -41,13 +48,53 @@ spec:
               cpu: "1000m"
               memory: 512Mi
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false  # Cowrie writes to its var/ tree
             capabilities:
               drop: ["ALL"]
           volumeMounts:
             - name: cowrie-logs
               mountPath: /cowrie/var/log/cowrie
+            - name: cowrie-config
+              mountPath: /cowrie/cowrie-git/etc/cowrie.cfg
+              subPath: cowrie.cfg
+        # ── mmproxy: SSH (restores real client IP) ────────────────────
+        - name: mmproxy-ssh
+          image: ghcr.io/openthreatgrid/mmproxy:main
+          imagePullPolicy: IfNotPresent
+          args: ["-l", "0.0.0.0:2222", "-4", "127.0.0.1:12222", "-p", "tcp"]
+          ports:
+            - containerPort: 2222
+              name: ssh
+          resources:
+            requests: { cpu: "50m", memory: 32Mi }
+            limits: { cpu: "200m", memory: 64Mi }
+          securityContext:
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN"]
+        # ── mmproxy: Telnet ───────────────────────────────────────────
+        - name: mmproxy-telnet
+          image: ghcr.io/openthreatgrid/mmproxy:main
+          imagePullPolicy: IfNotPresent
+          args: ["-l", "0.0.0.0:2223", "-4", "127.0.0.1:12223", "-p", "tcp"]
+          ports:
+            - containerPort: 2223
+              name: telnet
+          resources:
+            requests: { cpu: "50m", memory: 32Mi }
+            limits: { cpu: "200m", memory: 64Mi }
+          securityContext:
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN"]
         # ── Parser sidecar: tails the log, pushes to Redis ────────────
         - name: parser
           image: ghcr.io/openthreatgrid/otg-worker:main
@@ -61,13 +108,11 @@ spec:
             - name: SENSOR_ID
               value: "cowrie-prod-01"
           resources:
-            requests:
-              cpu: "100m"
-              memory: 128Mi
-            limits:
-              cpu: "250m"
-              memory: 256Mi
+            requests: { cpu: "100m", memory: 128Mi }
+            limits: { cpu: "250m", memory: 256Mi }
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
@@ -79,3 +124,6 @@ spec:
       volumes:
         - name: cowrie-logs
           emptyDir: {}
+        - name: cowrie-config
+          configMap:
+            name: cowrie-config

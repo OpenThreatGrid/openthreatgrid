@@ -28,6 +28,8 @@ jobs:
             context: reports
           - image: cowrie
             context: sensors/cowrie
+          - image: mmproxy
+            context: sensors/mmproxy
     steps:
       - uses: actions/checkout@v4
 

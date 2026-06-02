@@ -1,0 +1,38 @@
+# k3s manages its bundled Traefik via a HelmChart. This HelmChartConfig MERGES
+# extra values onto it — adding two TCP entrypoints for the honeypot WITHOUT
+# touching the existing web(80)/websecure(443) entrypoints.
+#
+# Each honeypot entrypoint terminates PROXY PROTOCOL v2 coming from the DO VPS
+# HAProxy. trustedIPs is set to the Tailscale CGNAT range (100.64.0.0/10) plus
+# the k3s pod CIDR so the PROXY header is trusted whether or not kube-proxy
+# SNATs the connection. Tighten to the exact VPS Tailscale IP once known.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    ports:
+      honeypot-ssh:
+        port: 2222
+        expose:
+          default: true
+        exposedPort: 2222
+        nodePort: 30022
+        protocol: TCP
+        proxyProtocol:
+          trustedIPs:
+            - 100.64.0.0/10
+            - 10.42.0.0/16
+      honeypot-telnet:
+        port: 2223
+        expose:
+          default: true
+        exposedPort: 2223
+        nodePort: 30023
+        protocol: TCP
+        proxyProtocol:
+          trustedIPs:
+            - 100.64.0.0/10
+            - 10.42.0.0/16
