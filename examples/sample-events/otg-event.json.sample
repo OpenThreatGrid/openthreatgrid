@@ -1,0 +1,28 @@
+{
+  "event_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-06-01T08:00:01.350000Z",
+  "sensor_id": "cowrie-prod-01",
+  "sensor_type": "cowrie",
+  "event_type": "login_attempt",
+  "source_ip": "203.0.113.42",
+  "source_port": 54012,
+  "destination_ip": "198.51.100.10",
+  "destination_port": 2222,
+  "protocol": "ssh",
+  "username": "root",
+  "password": "123456",
+  "command": null,
+  "payload_url": null,
+  "payload_hash": null,
+  "session_id": "a1b2c3d4",
+  "success": false,
+  "geo_country": null,
+  "geo_asn": null,
+  "tags": ["ssh"],
+  "raw_event": {
+    "eventid": "cowrie.login.failed",
+    "src_ip": "203.0.113.42",
+    "username": "root",
+    "password": "123456"
+  }
+}

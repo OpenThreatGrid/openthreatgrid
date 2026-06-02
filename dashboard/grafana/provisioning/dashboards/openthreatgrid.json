@@ -1,0 +1,196 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 0,
+  "schemaVersion": 39,
+  "tags": ["openthreatgrid", "honeypot", "threat-intel"],
+  "title": "OpenThreatGrid — Honeypot Telemetry",
+  "uid": "otg-main",
+  "time": { "from": "now-7d", "to": "now" },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "DS",
+        "label": "Datasource",
+        "type": "datasource",
+        "query": "postgres",
+        "current": { "text": "OpenThreatGrid", "value": "OpenThreatGrid" },
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Events",
+      "type": "stat",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS \"Total Events\" FROM events WHERE $__timeFilter(timestamp)"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Unique Source IPs",
+      "type": "stat",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(DISTINCT source_ip) AS \"Unique IPs\" FROM events WHERE $__timeFilter(timestamp)"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Event Distribution",
+      "type": "piechart",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "options": { "legend": { "displayMode": "table", "placement": "right" } },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT event_type AS metric, count(*) AS value FROM events WHERE $__timeFilter(timestamp) GROUP BY event_type ORDER BY value DESC"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Attack Timeline",
+      "type": "timeseries",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 50 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(timestamp, '1h') AS time, count(*) AS events FROM events WHERE $__timeFilter(timestamp) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Sensor Activity",
+      "type": "timeseries",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(timestamp, '1h') AS time, sensor_id AS metric, count(*) AS events FROM events WHERE $__timeFilter(timestamp) GROUP BY 1, sensor_id ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Top Source IPs",
+      "type": "barchart",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "options": { "orientation": "horizontal" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT host(source_ip) AS ip, count(*) AS events FROM events WHERE $__timeFilter(timestamp) GROUP BY source_ip ORDER BY events DESC LIMIT 10"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Top Usernames",
+      "type": "barchart",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "options": { "orientation": "horizontal" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT username, count(*) AS attempts FROM events WHERE username IS NOT NULL AND $__timeFilter(timestamp) GROUP BY username ORDER BY attempts DESC LIMIT 10"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Top Passwords",
+      "type": "table",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT password, count(*) AS attempts FROM events WHERE password IS NOT NULL AND $__timeFilter(timestamp) GROUP BY password ORDER BY attempts DESC LIMIT 20"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Top Commands",
+      "type": "table",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT command, count(*) AS times FROM events WHERE event_type = 'command_exec' AND command IS NOT NULL AND $__timeFilter(timestamp) GROUP BY command ORDER BY times DESC LIMIT 20"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Botnet Commands (wget/curl)",
+      "type": "table",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp, host(source_ip) AS ip, command FROM events WHERE (command ILIKE '%wget%' OR command ILIKE '%curl%' OR command ILIKE '%tftp%') AND $__timeFilter(timestamp) ORDER BY timestamp DESC LIMIT 50"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "File Downloads",
+      "type": "table",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 36 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp, host(source_ip) AS ip, payload_url, payload_hash FROM events WHERE event_type = 'file_download' AND $__timeFilter(timestamp) ORDER BY timestamp DESC LIMIT 50"
+        }
+      ]
+    }
+  ]
+}

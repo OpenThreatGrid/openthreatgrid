@@ -1,0 +1,51 @@
+# Initial schema, applied once by the Postgres entrypoint on an empty data dir.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: openthreatgrid
+data:
+  0001_init.sql: |
+    -- OpenThreatGrid — initial schema (PostgreSQL 16).
+    CREATE TABLE IF NOT EXISTS events (
+        id               BIGSERIAL PRIMARY KEY,
+        event_id         UUID        NOT NULL UNIQUE,
+        timestamp        TIMESTAMPTZ NOT NULL,
+        ingested_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        sensor_id        TEXT        NOT NULL,
+        sensor_type      TEXT        NOT NULL DEFAULT 'cowrie',
+        event_type       TEXT        NOT NULL,
+        source_ip        INET        NOT NULL,
+        source_port      INTEGER,
+        destination_ip   INET,
+        destination_port INTEGER,
+        protocol         TEXT,
+        username         TEXT,
+        password         TEXT,
+        command          TEXT,
+        payload_url      TEXT,
+        payload_hash     TEXT,
+        session_id       TEXT,
+        success          BOOLEAN     NOT NULL DEFAULT FALSE,
+        geo_country      CHAR(2),
+        geo_asn          TEXT,
+        tags             JSONB       NOT NULL DEFAULT '[]'::jsonb,
+        raw_event        JSONB       NOT NULL DEFAULT '{}'::jsonb
+    );
+    CREATE INDEX IF NOT EXISTS ix_events_timestamp           ON events (timestamp);
+    CREATE INDEX IF NOT EXISTS ix_events_event_type          ON events (event_type);
+    CREATE INDEX IF NOT EXISTS ix_events_source_ip           ON events (source_ip);
+    CREATE INDEX IF NOT EXISTS ix_events_sensor_id           ON events (sensor_id);
+    CREATE INDEX IF NOT EXISTS ix_events_type_timestamp      ON events (event_type, timestamp);
+    CREATE INDEX IF NOT EXISTS ix_events_source_ip_timestamp ON events (source_ip, timestamp);
+
+    -- Read-only role for Grafana.
+    DO $$ BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+            CREATE ROLE grafana_ro LOGIN PASSWORD 'change-me-grafana';
+        END IF;
+    END $$;
+    GRANT CONNECT ON DATABASE otg TO grafana_ro;
+    GRANT USAGE ON SCHEMA public TO grafana_ro;
+    GRANT SELECT ON ALL TABLES IN SCHEMA public TO grafana_ro;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO grafana_ro;

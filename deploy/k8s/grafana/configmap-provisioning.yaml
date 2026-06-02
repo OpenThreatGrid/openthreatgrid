@@ -1,0 +1,37 @@
+# Datasource + dashboard provider config. The dashboard JSON itself is large,
+# so generate its ConfigMap from the source of truth instead of pasting it:
+#
+#   kubectl -n openthreatgrid create configmap grafana-dashboards \
+#     --from-file=openthreatgrid.json=dashboard/grafana/provisioning/dashboards/openthreatgrid.json \
+#     --dry-run=client -o yaml | kubectl apply -f -
+#
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: openthreatgrid
+data:
+  datasource.yml: |
+    apiVersion: 1
+    datasources:
+      - name: OpenThreatGrid
+        type: postgres
+        access: proxy
+        url: postgres:5432
+        user: grafana_ro
+        database: otg
+        isDefault: true
+        secureJsonData:
+          password: change-me-grafana
+        jsonData:
+          sslmode: disable
+          postgresVersion: 1600
+        editable: false
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: OpenThreatGrid
+        type: file
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards

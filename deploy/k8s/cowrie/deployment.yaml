@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cowrie
+  namespace: openthreatgrid
+  labels:
+    app: cowrie
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cowrie
+  template:
+    metadata:
+      labels:
+        app: cowrie
+        # The parser sidecar shares this pod, so it is also app=cowrie AND
+        # app=otg-worker for NetworkPolicy selection (see redis-allow).
+        otg-role: sensor
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        # ── Honeypot ──────────────────────────────────────────────────
+        - name: cowrie
+          image: ghcr.io/openthreatgrid/cowrie:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 2222
+              name: ssh
+            - containerPort: 2223
+              name: telnet
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 256Mi
+            limits:
+              cpu: "1000m"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # Cowrie writes to its var/ tree
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: cowrie-logs
+              mountPath: /cowrie/var/log/cowrie
+        # ── Parser sidecar: tails the log, pushes to Redis ────────────
+        - name: parser
+          image: ghcr.io/openthreatgrid/otg-worker:latest
+          imagePullPolicy: IfNotPresent
+          args: ["parser"]
+          env:
+            - name: REDIS_URL
+              value: "redis://redis:6379/0"
+            - name: COWRIE_LOG_PATH
+              value: "/cowrie/var/log/cowrie/cowrie.json"
+            - name: SENSOR_ID
+              value: "cowrie-prod-01"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: 128Mi
+            limits:
+              cpu: "250m"
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: cowrie-logs
+              mountPath: /cowrie/var/log/cowrie
+              readOnly: true
+      volumes:
+        - name: cowrie-logs
+          emptyDir: {}

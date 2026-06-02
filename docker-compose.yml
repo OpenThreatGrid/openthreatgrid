@@ -1,0 +1,101 @@
+# OpenThreatGrid — full local development pipeline.
+#
+#   Cowrie ──► parser ──► Redis ──► consumer ──► API ──► PostgreSQL ──► Grafana
+#
+# Quick start:  ./scripts/run_local.sh   (or: docker compose up --build)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: otg
+      POSTGRES_PASSWORD: otg
+      POSTGRES_DB: otg
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otg"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend/otg-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://otg:otg@postgres:5432/otg
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: development
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  consumer:
+    build: ./workers/otg-worker
+    command: ["consumer"]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      OTG_API_URL: http://api:8000
+    depends_on:
+      - api
+      - redis
+
+  cowrie:
+    image: cowrie/cowrie:latest
+    # Expose the honeypot locally so you can poke it: ssh -p 2222 root@localhost
+    ports:
+      - "2222:2222"
+      - "2223:2223"
+    volumes:
+      - cowrie-logs:/cowrie/var/log/cowrie
+
+  parser:
+    build: ./workers/otg-worker
+    command: ["parser"]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      COWRIE_LOG_PATH: /cowrie/var/log/cowrie/cowrie.json
+      SENSOR_ID: cowrie-local-01
+    volumes:
+      - cowrie-logs:/cowrie/var/log/cowrie:ro
+    depends_on:
+      - redis
+      - cowrie
+
+  grafana:
+    image: grafana/grafana-oss:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      OTG_DB_HOST: postgres
+      OTG_DB_PORT: "5432"
+      OTG_DB_NAME: otg
+      OTG_DB_USER: otg
+      OTG_DB_PASSWORD: otg
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./dashboard/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  cowrie-logs:

@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-06-01T12:00:00Z",
+  "sensor_id": "otg-cowrie-01",
+  "sensor_type": "cowrie",
+  "source_ip": "203.0.113.10",
+  "destination_port": 22,
+  "protocol": "ssh",
+  "event_type": "login_attempt",
+  "username": "root",
+  "password": "admin123",
+  "command": null,
+  "tags": ["ssh", "bruteforce"],
+  "raw_event": {}
+}

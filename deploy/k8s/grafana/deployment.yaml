@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: openthreatgrid
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        fsGroup: 472
+      containers:
+        - name: grafana
+          image: grafana/grafana-oss:11.4.0
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: password
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: 256Mi
+            limits:
+              cpu: "500m"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: provisioning-datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: provisioning-dashboards
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: provisioning-datasources
+          configMap:
+            name: grafana-provisioning
+            items:
+              - key: datasource.yml
+                path: datasource.yml
+        - name: provisioning-dashboards
+          configMap:
+            name: grafana-provisioning
+            items:
+              - key: dashboards.yml
+                path: dashboards.yml
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards   # created from the dashboard JSON (see provisioning configmap notes)
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-admin
+  namespace: openthreatgrid
+type: Opaque
+stringData:
+  password: "change-me-admin"

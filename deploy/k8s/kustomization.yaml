@@ -1,0 +1,31 @@
+# Core application resources. Apply AFTER:
+#   1. Traefik is installed via Helm (deploy/k8s/traefik/values.yaml), and
+#   2. the Traefik IngressRouteTCP CRDs exist.
+# Then apply the IngressRoutes separately:
+#   kubectl apply -f deploy/k8s/traefik/ingressroute-tcp.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: openthreatgrid
+
+resources:
+  - namespace.yaml
+  - networkpolicy-global.yaml
+  - postgres/secret.yaml
+  - postgres/configmap.yaml
+  - postgres/statefulset.yaml
+  - postgres/service.yaml
+  - postgres/networkpolicy.yaml
+  - redis/deployment.yaml
+  - redis/service.yaml
+  - api/configmap.yaml
+  - api/deployment.yaml
+  - api/service.yaml
+  - worker/deployment.yaml
+  - cowrie/deployment.yaml
+  - cowrie/service.yaml
+  - cowrie/networkpolicy.yaml
+  - grafana/configmap-provisioning.yaml
+  - grafana/deployment.yaml
+  - grafana/service.yaml
+  - reports/cronjob.yaml

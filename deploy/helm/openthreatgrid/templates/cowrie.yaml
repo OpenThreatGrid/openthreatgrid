@@ -1,0 +1,72 @@
+{{- if .Values.cowrie.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cowrie
+  labels:
+    app: cowrie
+    {{- include "otg.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cowrie
+  template:
+    metadata:
+      labels:
+        app: cowrie
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cowrie
+          image: {{ include "otg.image" (dict "root" . "name" .Values.cowrie.image) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { containerPort: 2222, name: ssh }
+            - { containerPort: 2223, name: telnet }
+          resources:
+            {{- toYaml .Values.cowrie.resources | nindent 12 }}
+          volumeMounts:
+            - name: cowrie-logs
+              mountPath: /cowrie/var/log/cowrie
+        - name: parser
+          image: {{ include "otg.image" (dict "root" . "name" .Values.worker.image) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["parser"]
+          env:
+            - name: REDIS_URL
+              value: redis://redis:6379/0
+            - name: COWRIE_LOG_PATH
+              value: /cowrie/var/log/cowrie/cowrie.json
+            - name: SENSOR_ID
+              value: {{ .Values.cowrie.sensorId | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: cowrie-logs
+              mountPath: /cowrie/var/log/cowrie
+              readOnly: true
+      volumes:
+        - name: cowrie-logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cowrie
+  labels:
+    app: cowrie
+spec:
+  selector:
+    app: cowrie
+  ports:
+    - { port: 2222, targetPort: 2222, name: ssh }
+    - { port: 2223, targetPort: 2223, name: telnet }
+{{- end }}
