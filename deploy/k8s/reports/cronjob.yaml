@@ -25,7 +25,7 @@ spec:
             runAsUser: 10001
           containers:
             - name: report
-              image: ghcr.io/openthreatgrid/otg-reports:latest
+              image: ghcr.io/openthreatgrid/otg-reports:main
               imagePullPolicy: IfNotPresent
               args:
                 - "--api-url"

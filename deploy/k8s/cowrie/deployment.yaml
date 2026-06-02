@@ -26,7 +26,7 @@ spec:
       containers:
         # ── Honeypot ──────────────────────────────────────────────────
         - name: cowrie
-          image: ghcr.io/openthreatgrid/cowrie:latest
+          image: ghcr.io/openthreatgrid/cowrie:main
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 2222
@@ -50,7 +50,7 @@ spec:
               mountPath: /cowrie/var/log/cowrie
         # ── Parser sidecar: tails the log, pushes to Redis ────────────
         - name: parser
-          image: ghcr.io/openthreatgrid/otg-worker:latest
+          image: ghcr.io/openthreatgrid/otg-worker:main
           imagePullPolicy: IfNotPresent
           args: ["parser"]
           env:

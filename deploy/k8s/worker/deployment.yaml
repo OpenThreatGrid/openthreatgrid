@@ -22,7 +22,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: consumer
-          image: ghcr.io/openthreatgrid/otg-worker:latest
+          image: ghcr.io/openthreatgrid/otg-worker:main
           imagePullPolicy: IfNotPresent
           args: ["consumer"]
           env:

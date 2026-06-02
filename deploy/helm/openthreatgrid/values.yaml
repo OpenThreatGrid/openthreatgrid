@@ -6,7 +6,7 @@ fullnameOverride: ""
 image:
   registry: ghcr.io/openthreatgrid
   pullPolicy: IfNotPresent
-  tag: latest
+  tag: main
 
 # ─── API ───────────────────────────────────────────────────────────────
 api:

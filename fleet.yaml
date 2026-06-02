@@ -19,7 +19,7 @@ helm:
   values:
     image:
       registry: ghcr.io/openthreatgrid
-      tag: latest
+      tag: main
     api:
       enabled: true
       replicas: 2
