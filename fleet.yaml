@@ -1,0 +1,58 @@
+# Rancher Fleet (Continuous Delivery) bundle definition.
+#
+# Deploys the OpenThreatGrid Helm chart to the LOCAL cluster (workspace
+# fleet-local). Point a Fleet App Bundle / Git Repo at this repo with:
+#   Branch : main
+#   Paths  : /            (this file lives at the repo root)
+#
+# Fleet renders the chart in deploy/helm/openthreatgrid into namespace
+# "openthreatgrid".
+
+defaultNamespace: openthreatgrid
+
+helm:
+  releaseName: otg
+  chart: deploy/helm/openthreatgrid
+  # Give slow image pulls room on the first deploy before failing the bundle.
+  timeoutSeconds: 600
+  # Non-secret configuration. Override per-cluster below if needed.
+  values:
+    image:
+      registry: ghcr.io/openthreatgrid
+      tag: latest
+    api:
+      enabled: true
+      replicas: 2
+    worker:
+      enabled: true
+    cowrie:
+      enabled: true
+      sensorId: cowrie-prod-01
+    redis:
+      enabled: true
+    postgres:
+      enabled: true
+      storage: 10Gi
+      auth:
+        database: otg
+        username: otg
+        # SECURITY: do NOT keep this default. Either edit here, or (preferred)
+        # supply it from a cluster Secret via the valuesFrom block below.
+        password: change-me-in-production
+    grafana:
+      enabled: true
+      adminPassword: change-me-admin
+    reports:
+      enabled: true
+    networkPolicies:
+      enabled: true
+
+  # PREFERRED: keep passwords out of git. Pre-create a Secret named
+  # "otg-fleet-values" (key values.yaml) in the openthreatgrid namespace
+  # containing the postgres/grafana passwords, then uncomment:
+  #
+  # valuesFrom:
+  #   - secretKeyRef:
+  #       name: otg-fleet-values
+  #       namespace: openthreatgrid
+  #       key: values.yaml
