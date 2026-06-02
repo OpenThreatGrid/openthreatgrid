@@ -1,0 +1,67 @@
+# Default values for the OpenThreatGrid chart.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  registry: ghcr.io/openthreatgrid
+  pullPolicy: IfNotPresent
+  tag: latest
+
+# ─── API ───────────────────────────────────────────────────────────────
+api:
+  enabled: true
+  replicas: 2
+  image: otg-api
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+# ─── Worker (consumer) ─────────────────────────────────────────────────
+worker:
+  enabled: true
+  replicas: 1
+  image: otg-worker
+  batchSize: 50
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+# ─── Cowrie sensor + parser sidecar ────────────────────────────────────
+cowrie:
+  enabled: true
+  image: cowrie
+  sensorId: cowrie-prod-01
+  resources:
+    requests: { cpu: 500m, memory: 256Mi }
+    limits:   { cpu: 1000m, memory: 512Mi }
+
+# ─── Redis (in-cluster queue) ──────────────────────────────────────────
+redis:
+  enabled: true
+  image: redis:7-alpine
+
+# ─── PostgreSQL ────────────────────────────────────────────────────────
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  storage: 10Gi
+  auth:
+    database: otg
+    username: otg
+    password: change-me-in-production
+
+# ─── Grafana ───────────────────────────────────────────────────────────
+grafana:
+  enabled: true
+  image: grafana/grafana-oss:11.4.0
+  adminPassword: change-me-admin
+
+# ─── Weekly report CronJob ─────────────────────────────────────────────
+reports:
+  enabled: true
+  image: otg-reports
+  schedule: "0 6 * * 1"
+
+networkPolicies:
+  enabled: true

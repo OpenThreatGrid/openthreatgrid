@@ -1,0 +1,57 @@
+# Helm values for Traefik v3 (helm repo: traefik/traefik).
+# Adds TCP entrypoints for the honeypot + HTTPS, each terminating PROXY
+# PROTOCOL v2 from the DO VPS HAProxy and trusting ONLY its Tailscale IP.
+#
+#   helm repo add traefik https://traefik.github.io/charts
+#   helm upgrade --install traefik traefik/traefik \
+#       -n openthreatgrid --create-namespace -f values.yaml
+
+ports:
+  honeypot-ssh:
+    port: 2222
+    expose:
+      default: true
+    exposedPort: 30022
+    nodePort: 30022
+    protocol: TCP
+    proxyProtocol:
+      trustedIPs:
+        - "<TAILSCALE_IP_DO_VPS>/32"   # ONLY trust the edge VPS
+  honeypot-telnet:
+    port: 2223
+    expose:
+      default: true
+    exposedPort: 30023
+    nodePort: 30023
+    protocol: TCP
+    proxyProtocol:
+      trustedIPs:
+        - "<TAILSCALE_IP_DO_VPS>/32"
+  websecure:
+    port: 443
+    expose:
+      default: true
+    exposedPort: 30443
+    nodePort: 30443
+    protocol: TCP
+    proxyProtocol:
+      trustedIPs:
+        - "<TAILSCALE_IP_DO_VPS>/32"
+
+service:
+  type: NodePort
+
+# Let the IngressRouteTCP resources below drive routing.
+providers:
+  kubernetesCRD:
+    enabled: true
+  kubernetesIngress:
+    enabled: true
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: 128Mi
+  limits:
+    cpu: "500m"
+    memory: 256Mi

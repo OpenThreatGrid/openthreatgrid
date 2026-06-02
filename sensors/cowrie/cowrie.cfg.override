@@ -1,0 +1,36 @@
+# OpenThreatGrid — Cowrie overrides (merged over Cowrie's cowrie.cfg.dist).
+# Only the keys that differ from upstream defaults are set here.
+
+[honeypot]
+# Identity the honeypot presents and tags in logs.
+hostname = srv-web-01
+sensor_name = cowrie-prod-01
+
+[ssh]
+enabled = true
+# Listen for SSH on 2222 (Traefik forwards here).
+listen_endpoints = tcp:2222:interface=0.0.0.0
+version = SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.1
+
+[telnet]
+enabled = true
+listen_endpoints = tcp:2223:interface=0.0.0.0
+
+# ─── OUTPUT: JSON log consumed by the OTG parser sidecar ───────────────
+[output_jsonlog]
+enabled = true
+logfile = ${honeypot:log_path}/cowrie.json
+epoch_timestamp = false
+
+# Disable any output plugin that would reach the internet — the honeypot pod
+# has no outbound network access (enforced by NetworkPolicy as well).
+[output_virustotal]
+enabled = false
+
+[output_malshare]
+enabled = false
+
+# NOTE on real source IP:
+# HAProxy (edge) and Traefik (ingress) carry PROXY PROTOCOL v2 so the attacker's
+# real IP reaches this pod. Ensure the Cowrie build in use accepts PROXY
+# PROTOCOL on its listen endpoints; otherwise source_ip will be Traefik's pod IP.
