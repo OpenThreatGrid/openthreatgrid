@@ -62,6 +62,39 @@ def test_sensor_id_override_wins():
     assert event["sensor_id"] == "override"
 
 
+def test_destination_normalized_behind_mmproxy():
+    # Cowrie sees the mmproxy localhost target; we normalize it to the public port
+    # and drop the loopback IP.
+    event = map_cowrie_event(
+        {
+            "eventid": "cowrie.session.connect",
+            "src_ip": "203.0.113.7",
+            "dst_ip": "127.0.0.1",
+            "dst_port": 12222,
+            "protocol": "ssh",
+        }
+    )
+    assert event["destination_ip"] is None
+    assert event["destination_port"] == 2222
+    assert event["protocol"] == "ssh"
+
+    telnet = map_cowrie_event(
+        {"eventid": "cowrie.session.connect", "dst_ip": "::1", "dst_port": 12223}
+    )
+    assert telnet["destination_ip"] is None
+    assert telnet["destination_port"] == 2223
+    assert telnet["protocol"] == "telnet"
+
+
+def test_real_destination_preserved():
+    # A non-loopback destination is kept as-is.
+    event = map_cowrie_event(
+        {"eventid": "cowrie.session.connect", "dst_ip": "198.51.100.10", "dst_port": 2222}
+    )
+    assert event["destination_ip"] == "198.51.100.10"
+    assert event["destination_port"] == 2222
+
+
 def test_unmapped_event_returns_none():
     assert map_cowrie_event({"eventid": "cowrie.client.version"}) is None
     assert map_cowrie_event({"no_eventid": True}) is None

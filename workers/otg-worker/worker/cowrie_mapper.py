@@ -24,7 +24,18 @@ EVENTID_MAP: dict[str, str] = {
 }
 
 # Cowrie reports the listening port; map it to a coarse protocol label.
-_PORT_PROTOCOL = {2222: "ssh", 22: "ssh", 2223: "telnet", 23: "telnet"}
+# 12222/12223 are the localhost ports Cowrie actually binds behind the mmproxy
+# sidecar (see deploy); they are normalized away below.
+_PORT_PROTOCOL = {
+    2222: "ssh", 22: "ssh", 12222: "ssh",
+    2223: "telnet", 23: "telnet", 12223: "telnet",
+}
+
+# When Cowrie sits behind the mmproxy sidecar it sees the connection arriving on
+# 127.0.0.1:1222x. Map those internal ports back to the public-facing ones and
+# drop the loopback destination IP so events reflect the real honeypot endpoint.
+_INTERNAL_DST_PORTS = {12222: 2222, 12223: 2223}
+_LOOPBACK_IPS = {"127.0.0.1", "::1"}
 
 
 def _protocol(entry: dict[str, Any]) -> str | None:
@@ -35,6 +46,18 @@ def _protocol(entry: dict[str, Any]) -> str | None:
     if isinstance(dst_port, int):
         return _PORT_PROTOCOL.get(dst_port)
     return None
+
+
+def _dest_ip(entry: dict[str, Any]) -> str | None:
+    ip = entry.get("dst_ip")
+    return None if ip in _LOOPBACK_IPS else ip
+
+
+def _dest_port(entry: dict[str, Any]) -> int | None:
+    port = entry.get("dst_port")
+    if not isinstance(port, int):
+        return None
+    return _INTERNAL_DST_PORTS.get(port, port)
 
 
 def map_cowrie_event(entry: dict[str, Any], sensor_id: str | None = None) -> dict | None:
@@ -56,8 +79,8 @@ def map_cowrie_event(entry: dict[str, Any], sensor_id: str | None = None) -> dic
         "event_type": event_type,
         "source_ip": entry.get("src_ip"),
         "source_port": entry.get("src_port"),
-        "destination_ip": entry.get("dst_ip"),
-        "destination_port": entry.get("dst_port"),
+        "destination_ip": _dest_ip(entry),
+        "destination_port": _dest_port(entry),
         "protocol": _protocol(entry),
         "username": entry.get("username"),
         "password": entry.get("password"),

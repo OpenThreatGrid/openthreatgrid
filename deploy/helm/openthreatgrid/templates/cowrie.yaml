@@ -11,6 +11,8 @@ data:
     hostname = srv-web-01
     sensor_name = {{ .Values.cowrie.sensorId }}
     log_path = /cowrie/var/log/cowrie
+    auth_class = AuthRandom
+    auth_class_parameters = 2, 5, 10
 
     [ssh]
     enabled = true

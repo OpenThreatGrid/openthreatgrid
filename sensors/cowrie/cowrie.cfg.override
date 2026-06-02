@@ -9,6 +9,11 @@
 [honeypot]
 hostname = srv-web-01
 sensor_name = cowrie-prod-01
+log_path = /cowrie/var/log/cowrie
+# Accept logins after a few brute-force tries so bots reach the shell and we
+# capture their commands / malware.
+auth_class = AuthRandom
+auth_class_parameters = 2, 5, 10
 
 [ssh]
 enabled = true

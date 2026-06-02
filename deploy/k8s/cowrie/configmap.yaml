@@ -13,6 +13,10 @@ data:
     sensor_name = cowrie-prod-01
     # Write logs to the shared volume (mounted here) so the parser sidecar reads them.
     log_path = /cowrie/var/log/cowrie
+    # Accept logins after a few brute-force tries so bots proceed into the shell
+    # and we capture their commands / malware. (succeed after 2-5 attempts)
+    auth_class = AuthRandom
+    auth_class_parameters = 2, 5, 10
 
     [ssh]
     enabled = true
