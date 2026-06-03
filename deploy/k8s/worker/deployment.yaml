@@ -23,7 +23,7 @@ spec:
       containers:
         - name: consumer
           image: ghcr.io/openthreatgrid/otg-worker:main
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           args: ["consumer"]
           env:
             - name: REDIS_URL

@@ -23,7 +23,7 @@ spec:
       containers:
         - name: otg-api
           image: ghcr.io/openthreatgrid/otg-api:main
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           envFrom:

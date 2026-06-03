@@ -27,7 +27,7 @@ spec:
         # from Cowrie are routed back through mmproxy (runs once in the pod netns).
         - name: setup-routing
           image: ghcr.io/openthreatgrid/mmproxy:main
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command: ["sh", "-c"]
           args:
             - |
@@ -42,7 +42,7 @@ spec:
         # ── Honeypot (localhost only; locked down) ────────────────────
         - name: cowrie
           image: ghcr.io/openthreatgrid/cowrie:main
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           resources:
             requests:
               cpu: "500m"
@@ -65,7 +65,7 @@ spec:
         # ── mmproxy: SSH (restores real client IP) ────────────────────
         - name: mmproxy-ssh
           image: ghcr.io/openthreatgrid/mmproxy:main
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           args: ["-l", "0.0.0.0:2222", "-4", "127.0.0.1:12222", "-p", "tcp"]
           ports:
             - containerPort: 2222
@@ -83,7 +83,7 @@ spec:
         # ── mmproxy: Telnet ───────────────────────────────────────────
         - name: mmproxy-telnet
           image: ghcr.io/openthreatgrid/mmproxy:main
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           args: ["-l", "0.0.0.0:2223", "-4", "127.0.0.1:12223", "-p", "tcp"]
           ports:
             - containerPort: 2223
@@ -101,7 +101,7 @@ spec:
         # ── Parser sidecar: tails the log, pushes to Redis ────────────
         - name: parser
           image: ghcr.io/openthreatgrid/otg-worker:main
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           args: ["parser"]
           env:
             - name: REDIS_URL

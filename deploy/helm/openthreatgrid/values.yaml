@@ -5,7 +5,8 @@ fullnameOverride: ""
 
 image:
   registry: ghcr.io/openthreatgrid
-  pullPolicy: IfNotPresent
+  # Always pull because the :main tag is mutable (rebuilt on every push to main).
+  pullPolicy: Always
   tag: main
 
 # ─── API ───────────────────────────────────────────────────────────────
