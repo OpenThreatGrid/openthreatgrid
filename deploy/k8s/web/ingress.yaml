@@ -1,0 +1,62 @@
+# Public HTTP ingress for the OTG dashboard (OpenSearch Dashboards) and API.
+# Mirrors the cluster's existing pattern: ingressClass traefik, websecure
+# entrypoint, cert-manager (letsencrypt-prod), plus the otg-basicauth middleware.
+#
+# Traffic path: Cloudflare DNS -> cloudflared tunnel -> Traefik (websecure)
+#               -> basic-auth -> this Ingress -> service.
+#
+# >>> EDIT the two hostnames to your domain before applying. <<<
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: otg-dashboard
+  namespace: openthreatgrid
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: openthreatgrid-otg-basicauth@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: otg.openthreatgrid.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: opensearch-dashboards
+                port:
+                  number: 5601
+  tls:
+    - hosts:
+        - otg.openthreatgrid.io
+      secretName: otg-dashboard-tls
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: otg-api
+  namespace: openthreatgrid
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: openthreatgrid-otg-basicauth@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: otg-api.openthreatgrid.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: otg-api
+                port:
+                  number: 8000
+  tls:
+    - hosts:
+        - otg-api.openthreatgrid.io
+      secretName: otg-api-tls

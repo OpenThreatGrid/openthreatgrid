@@ -39,8 +39,8 @@ kubectl create namespace otg-system
 otg-cowrie-sensor
 otg-api
 otg-worker
-postgres
-grafana
+opensearch
+opensearch-dashboards
 ```
 
 ## Resource Planning
@@ -49,20 +49,20 @@ Suggested MVP resource requests:
 
 ```text
 cowrie-sensor   500m CPU   512Mi RAM
-api             500m CPU   512Mi RAM
-worker          500m CPU   512Mi RAM
-postgres        1 CPU      2Gi RAM
-grafana         250m CPU   512Mi RAM
+api             250m CPU   256Mi RAM
+worker          250m CPU   256Mi RAM
+opensearch      500m CPU   1.5Gi RAM
+dashboards      250m CPU   512Mi RAM
 ```
 
 Suggested MVP resource limits:
 
 ```text
 cowrie-sensor   1 CPU      1Gi RAM
-api             1 CPU      1Gi RAM
-worker          1 CPU      1Gi RAM
-postgres        4 CPU      8Gi RAM
-grafana         1 CPU      1Gi RAM
+api             500m CPU   512Mi RAM
+worker          500m CPU   512Mi RAM
+opensearch      2 CPU      2Gi RAM
+dashboards      1 CPU      1Gi RAM
 ```
 
 ## Network Policy
@@ -79,7 +79,8 @@ Honeypot pods should be restricted carefully:
 For MVP:
 
 - Expose Cowrie using a LoadBalancer or NodePort mapped to SSH/Telnet-like ports.
-- Expose Grafana behind authentication.
+- Expose OpenSearch Dashboards behind authentication; never expose OpenSearch
+  (`:9200`) directly.
 - Keep the API internal unless remote sensors are used.
 
 ## Future Helm Chart
@@ -89,6 +90,6 @@ A Helm chart will later manage:
 - Configurable sensor deployment
 - API deployment
 - Worker deployment
-- PostgreSQL or external DB settings
-- Grafana dashboard provisioning
+- OpenSearch settings (storage, JVM heap, security)
+- OpenSearch Dashboards saved-object provisioning
 - NetworkPolicy templates

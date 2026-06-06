@@ -59,6 +59,25 @@ class EventCreate(EventBase):
 
     event_id: str | None = Field(default=None, max_length=36, validate_default=True)
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "timestamp": "2026-06-01T12:34:56.789Z",
+                "sensor_id": "cowrie-sg-01",
+                "sensor_type": "cowrie",
+                "event_type": "login_attempt",
+                "source_ip": "203.0.113.42",
+                "source_port": 54321,
+                "destination_port": 22,
+                "protocol": "ssh",
+                "username": "root",
+                "password": "admin123",
+                "success": False,
+                "tags": ["ssh", "bruteforce"],
+            }
+        }
+    )
+
     @field_validator("event_id")
     @classmethod
     def default_event_id(cls, v: str | None) -> str:
@@ -75,7 +94,21 @@ class EventRead(EventBase):
 
 
 class EventBatchResult(BaseModel):
-    """Response for a (possibly batched) ingestion request."""
+    """Response for a (possibly batched) ingestion request.
+
+    ``accepted`` is the number of *newly stored* events; duplicates (by
+    ``event_id``) are silently skipped, so ``accepted`` may be less than the
+    number submitted.
+    """
 
     accepted: int
     event_ids: list[str]
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "accepted": 1,
+                "event_ids": ["f47ac10b-58cc-4372-a567-0e02b2c3d479"],
+            }
+        }
+    )

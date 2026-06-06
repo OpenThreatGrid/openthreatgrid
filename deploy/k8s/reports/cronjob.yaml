@@ -1,6 +1,6 @@
 # Weekly threat-intelligence report. Runs Mondays 06:00 UTC, writes Markdown to
-# a PVC. Labelled app=otg-reports so the postgres NetworkPolicy admits it (the
-# generator reaches the API, which reaches Postgres).
+# a PVC. Labelled app=otg-reports so the API NetworkPolicy admits it; the
+# generator reaches the API only (it does not touch OpenSearch directly).
 apiVersion: batch/v1
 kind: CronJob
 metadata:

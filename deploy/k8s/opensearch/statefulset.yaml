@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: opensearch
+  namespace: openthreatgrid
+  labels:
+    app: opensearch
+spec:
+  serviceName: opensearch
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensearch
+  template:
+    metadata:
+      labels:
+        app: opensearch
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsNonRoot: true
+      containers:
+        - name: opensearch
+          image: opensearchproject/opensearch:2.18.0
+          ports:
+            - containerPort: 9200
+              name: http
+            - containerPort: 9600
+              name: metrics
+          env:
+            - name: discovery.type
+              value: single-node
+            - name: OPENSEARCH_JAVA_OPTS
+              value: "-Xms1g -Xmx1g"
+            # Avoid the host vm.max_map_count=262144 requirement so the pod runs
+            # on an unmodified k3s node.
+            - name: node.store.allow_mmap
+              value: "false"
+            # Internal-only cluster guarded by NetworkPolicy; the security
+            # plugin is disabled to keep the MVP simple. Enable it (with TLS +
+            # credentials) before exposing OpenSearch beyond the namespace.
+            - name: DISABLE_SECURITY_PLUGIN
+              value: "true"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 1536Mi
+            limits:
+              cpu: "2000m"
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/opensearch/data
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health?wait_for_status=yellow&timeout=5s
+              port: 9200
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9200
+            initialDelaySeconds: 60
+            periodSeconds: 20
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

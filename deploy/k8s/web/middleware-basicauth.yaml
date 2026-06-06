@@ -1,0 +1,12 @@
+# Traefik BasicAuth middleware — an extra auth layer in front of the dashboard
+# and API. Credentials live in the otg-basic-auth Secret (create it with
+# create-basic-auth.sh; never commit the real one).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: otg-basicauth
+  namespace: openthreatgrid
+spec:
+  basicAuth:
+    secret: otg-basic-auth
+    realm: OpenThreatGrid

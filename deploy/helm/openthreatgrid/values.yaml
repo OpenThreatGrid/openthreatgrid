@@ -42,21 +42,25 @@ redis:
   enabled: true
   image: redis:7-alpine
 
-# ─── PostgreSQL ────────────────────────────────────────────────────────
-postgres:
+# ─── OpenSearch (primary event store) ──────────────────────────────────
+opensearch:
   enabled: true
-  image: postgres:16-alpine
+  image: opensearchproject/opensearch:2.18.0
   storage: 10Gi
-  auth:
-    database: otg
-    username: otg
-    password: change-me-in-production
+  javaOpts: "-Xms1g -Xmx1g"
+  resources:
+    requests: { cpu: 500m, memory: 1536Mi }
+    limits:   { cpu: 2000m, memory: 2Gi }
 
-# ─── Grafana ───────────────────────────────────────────────────────────
-grafana:
+# ─── OpenSearch Dashboards ─────────────────────────────────────────────
+dashboards:
   enabled: true
-  image: grafana/grafana-oss:11.4.0
-  adminPassword: change-me-admin
+  image: opensearchproject/opensearch-dashboards:2.18.0
+  # Image used by the post-install hook that imports saved objects.
+  importImage: curlimages/curl:8.11.1
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits:   { cpu: 1000m, memory: 1Gi }
 
 # ─── Weekly report CronJob ─────────────────────────────────────────────
 reports:

@@ -1,25 +1,45 @@
 # OpenThreatGrid — full local development pipeline.
 #
-#   Cowrie ──► parser ──► Redis ──► consumer ──► API ──► PostgreSQL ──► Grafana
+#   Cowrie ──► parser ──► Redis ──► consumer ──► API ──► OpenSearch ──► Dashboards
 #
 # Quick start:  ./scripts/run_local.sh   (or: docker compose up --build)
+# After the stack is healthy, load the index template + dashboards:
+#   ./scripts/bootstrap_opensearch.sh
 
 services:
-  postgres:
-    image: postgres:16-alpine
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
     environment:
-      POSTGRES_USER: otg
-      POSTGRES_PASSWORD: otg
-      POSTGRES_DB: otg
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      # Local dev only: disable the security plugin so no TLS/auth is required.
+      # NEVER do this on an internet-exposed cluster.
+      - DISABLE_SECURITY_PLUGIN=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     ports:
-      - "5432:5432"
+      - "9200:9200"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - os-data:/usr/share/opensearch/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U otg"]
-      interval: 5s
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 20
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.18.0
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
@@ -34,13 +54,13 @@ services:
   api:
     build: ./backend/otg-api
     environment:
-      DATABASE_URL: postgresql+psycopg://otg:otg@postgres:5432/otg
+      OPENSEARCH_URL: http://opensearch:9200
       REDIS_URL: redis://redis:6379/0
       ENVIRONMENT: development
     ports:
       - "8000:8000"
     depends_on:
-      postgres:
+      opensearch:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -77,25 +97,6 @@ services:
       - redis
       - cowrie
 
-  grafana:
-    image: grafana/grafana-oss:11.4.0
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      OTG_DB_HOST: postgres
-      OTG_DB_PORT: "5432"
-      OTG_DB_NAME: otg
-      OTG_DB_USER: otg
-      OTG_DB_PASSWORD: otg
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./dashboard/grafana/provisioning:/etc/grafana/provisioning:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-
 volumes:
-  pgdata:
+  os-data:
   cowrie-logs:

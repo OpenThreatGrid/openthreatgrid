@@ -2,54 +2,48 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Query
 
-from app.db.session import get_db
-from app.models.event import Event
 from app.schemas.stats_schema import Count, StatsSummary
+from app.store import get_store
+from app.store.base import EventStore
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
 
-def _top(db: Session, column, limit: int = 10) -> list[Count]:
-    """Return the top ``limit`` non-null values of ``column`` by frequency."""
-    rows = db.execute(
-        select(column, func.count().label("c"))
-        .where(column.isnot(None))
-        .group_by(column)
-        .order_by(func.count().desc())
-        .limit(limit)
-    ).all()
-    return [Count(key=str(value), count=count) for value, count in rows]
-
-
 @router.get("/summary", response_model=StatsSummary)
-def stats_summary(db: Annotated[Session, Depends(get_db)]) -> StatsSummary:
+def stats_summary(store: Annotated[EventStore, Depends(get_store)]) -> StatsSummary:
     """Aggregated counts across all stored events."""
-    total = db.scalar(select(func.count()).select_from(Event)) or 0
-    unique_ips = db.scalar(select(func.count(func.distinct(Event.source_ip)))) or 0
-    unique_sensors = db.scalar(select(func.count(func.distinct(Event.sensor_id)))) or 0
+    return StatsSummary(**store.summary())
 
-    by_type_rows = db.execute(
-        select(Event.event_type, func.count())
-        .group_by(Event.event_type)
-        .order_by(func.count().desc())
-    ).all()
-    events_by_type = [Count(key=t, count=c) for t, c in by_type_rows]
 
-    first_event = db.scalar(select(func.min(Event.timestamp)))
-    last_event = db.scalar(select(func.max(Event.timestamp)))
+@router.get("/top-source-ips", response_model=list[Count])
+def top_source_ips(
+    store: Annotated[EventStore, Depends(get_store)],
+    limit: int = Query(default=10, ge=1, le=100),
+) -> list[Count]:
+    return [Count(**c) for c in store.top("source_ip", limit)]
 
-    return StatsSummary(
-        total_events=total,
-        unique_source_ips=unique_ips,
-        unique_sensors=unique_sensors,
-        events_by_type=events_by_type,
-        top_source_ips=_top(db, Event.source_ip),
-        top_usernames=_top(db, Event.username),
-        top_passwords=_top(db, Event.password),
-        first_event=first_event.isoformat() if first_event else None,
-        last_event=last_event.isoformat() if last_event else None,
-    )
+
+@router.get("/top-usernames", response_model=list[Count])
+def top_usernames(
+    store: Annotated[EventStore, Depends(get_store)],
+    limit: int = Query(default=10, ge=1, le=100),
+) -> list[Count]:
+    return [Count(**c) for c in store.top("username", limit)]
+
+
+@router.get("/top-passwords", response_model=list[Count])
+def top_passwords(
+    store: Annotated[EventStore, Depends(get_store)],
+    limit: int = Query(default=10, ge=1, le=100),
+) -> list[Count]:
+    return [Count(**c) for c in store.top("password", limit)]
+
+
+@router.get("/top-commands", response_model=list[Count])
+def top_commands(
+    store: Annotated[EventStore, Depends(get_store)],
+    limit: int = Query(default=10, ge=1, le=100),
+) -> list[Count]:
+    return [Count(**c) for c in store.top("command", limit)]

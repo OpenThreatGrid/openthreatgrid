@@ -29,13 +29,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: otg-api-config
-            - secretRef:
-                name: postgres-credentials
-          env:
-            # Dependent env var: K8s substitutes $(VAR) from the secret above,
-            # keeping the password out of any ConfigMap.
-            - name: DATABASE_URL
-              value: "postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
           resources:
             requests:
               cpu: "250m"

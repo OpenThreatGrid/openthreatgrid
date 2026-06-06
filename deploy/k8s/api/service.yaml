@@ -13,8 +13,8 @@ spec:
       targetPort: 8000
       name: http
 ---
-# API accepts traffic from the worker (event submission), Grafana, and Traefik
-# (for the dashboard/API ingress). Egress to Postgres + Redis.
+# API accepts traffic from the worker (event submission) and Traefik (API
+# ingress). Egress to OpenSearch + Redis.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -34,7 +34,7 @@ spec:
               app: otg-worker
         - podSelector:
             matchLabels:
-              app: grafana
+              app: otg-reports
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: traefik
@@ -49,10 +49,10 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app: postgres
+              app: opensearch
       ports:
         - protocol: TCP
-          port: 5432
+          port: 9200
     - to:
         - podSelector:
             matchLabels:

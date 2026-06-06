@@ -1,6 +1,6 @@
 # Default-deny baseline for the whole namespace, plus the one egress every pod
 # legitimately needs: DNS. All other allowed flows are granted by the
-# per-component NetworkPolicies (api, postgres, redis, cowrie, ...).
+# per-component NetworkPolicies (api, opensearch, redis, cowrie, ...).
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

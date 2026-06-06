@@ -16,6 +16,7 @@ import redis
 
 from worker.config import Config
 from worker.enrichment import enrich_event
+from worker.geoip import GeoIP
 
 logger = logging.getLogger("otg.consumer")
 
@@ -54,6 +55,7 @@ def run(config: Config | None = None, max_batches: int | None = None) -> None:
     """Consume and submit forever (or for ``max_batches`` iterations in tests)."""
     cfg = config or Config()
     client = redis.Redis.from_url(cfg.REDIS_URL)
+    geoip = GeoIP(cfg.GEOIP_DB_DIR)
     logger.info("Consumer draining %s -> %s", cfg.EVENT_QUEUE, cfg.API_BASE_URL)
 
     processed = 0
@@ -64,7 +66,7 @@ def run(config: Config | None = None, max_batches: int | None = None) -> None:
                 time.sleep(0.1)
                 continue
 
-            enriched = [enrich_event(e) for e in batch]
+            enriched = [enrich_event(e, geoip) for e in batch]
             if not _submit(http, cfg.API_BASE_URL, enriched):
                 # Re-queue (push back to the tail) so events are retried.
                 pipe = client.pipeline()

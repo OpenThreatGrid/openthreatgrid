@@ -1,17 +1,20 @@
-"""Lightweight, dependency-free enrichment for normalized events.
+"""Enrichment for normalized events.
 
-The MVP keeps enrichment self-contained: no external API calls, no MaxMind
-database required. It classifies source IPs (private vs. public) and derives
-behavioural tags from commands. GeoIP/ASN and AbuseIPDB scoring are deferred to
-the post-MVP backlog (see the development plan) — the ``geo_*`` fields are left
-for those integrations to populate.
+Tagging is self-contained (no external calls): it classifies source IPs
+(private vs. public) and derives behavioural tags from commands. GeoIP/ASN
+enrichment is optional — pass a :class:`worker.geoip.GeoIP` resolver to populate
+``geo_country``/``geo_asn`` when MaxMind GeoLite2 databases are available; when
+absent, those fields stay null and only tagging runs.
 """
 
 from __future__ import annotations
 
 import ipaddress
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from worker.geoip import GeoIP
 
 # Command substrings that indicate common botnet / malware-staging behaviour.
 _BOTNET_PATTERNS = {
@@ -46,11 +49,13 @@ def _command_tags(command: str | None) -> list[str]:
     return [name for name, pattern in _BOTNET_PATTERNS.items() if pattern.search(command)]
 
 
-def enrich_event(event: dict[str, Any]) -> dict[str, Any]:
-    """Return ``event`` with additional tags derived from its contents.
+def enrich_event(event: dict[str, Any], geoip: GeoIP | None = None) -> dict[str, Any]:
+    """Return ``event`` with additional tags and optional geo fields.
 
     Mutates and returns the same dict for convenience. Tags are de-duplicated
-    while preserving order.
+    while preserving order. When ``geoip`` is supplied and resolves the source
+    IP, ``geo_country``/``geo_asn`` are populated and the country is added as a
+    tag.
     """
     tags = list(event.get("tags") or [])
 
@@ -65,6 +70,14 @@ def enrich_event(event: dict[str, Any]) -> dict[str, Any]:
 
     if event.get("payload_url"):
         tags.append("payload")
+
+    if geoip is not None:
+        country, asn = geoip.lookup(event.get("source_ip"))
+        if country:
+            event["geo_country"] = country
+            tags.append(country)
+        if asn:
+            event["geo_asn"] = asn
 
     # De-duplicate, preserve order.
     seen: set[str] = set()

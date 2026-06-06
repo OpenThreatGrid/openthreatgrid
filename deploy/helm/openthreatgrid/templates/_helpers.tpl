@@ -23,9 +23,3 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{- printf "%s/%s:%s" .root.Values.image.registry .name .root.Values.image.tag -}}
 {{- end -}}
 
-{{/* DATABASE_URL assembled from postgres auth values. */}}
-{{- define "otg.databaseUrl" -}}
-{{- with .Values.postgres.auth -}}
-postgresql+psycopg://{{ .username }}:{{ .password }}@postgres:5432/{{ .database }}
-{{- end -}}
-{{- end -}}

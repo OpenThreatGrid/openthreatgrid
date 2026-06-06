@@ -15,6 +15,10 @@ class Config:
     COWRIE_LOG_PATH = os.getenv("COWRIE_LOG_PATH", "/cowrie/var/log/cowrie/cowrie.json")
     SENSOR_ID = os.getenv("SENSOR_ID", "cowrie-prod-01")
 
+    # Optional GeoIP/ASN enrichment. Point at a directory holding the MaxMind
+    # GeoLite2-Country.mmdb / GeoLite2-ASN.mmdb files; empty disables it.
+    GEOIP_DB_DIR = os.getenv("GEOIP_DB_DIR", "")
+
     # Consumer batching / polling.
     BATCH_SIZE = int(os.getenv("WORKER_BATCH_SIZE", "50"))
     BATCH_TIMEOUT = float(os.getenv("WORKER_BATCH_TIMEOUT", "2.0"))

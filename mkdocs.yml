@@ -1,0 +1,67 @@
+site_name: OpenThreatGrid
+site_description: Open Source Threat Hunting & Intelligence — a T-Pot-inspired, OpenSearch-native honeynet platform.
+site_url: https://docs.openthreatgrid.io
+repo_url: https://github.com/OpenThreatGrid/openthreatgrid
+repo_name: OpenThreatGrid/openthreatgrid
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - content.code.copy
+    - content.action.edit
+    - search.suggest
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Event Schema: event-schema.md
+  - API Reference: api.md
+  - Deployment:
+      - Guide: deployment-guide.md
+      - Kubernetes: deployment-kubernetes.md
+      - Infrastructure: infrastructure.md
+  - Operations:
+      - Safe Honeypot Operation: safe-honeypot-operation.md
+      - Data Policy: data-policy.md
+      - Shadowserver Collaboration: shadowserver-collaboration.md
+  - Roadmap: roadmap.md
+
+plugins:
+  - search

@@ -2,7 +2,10 @@
 
 Every sensor's output is normalized to a single **OTG Standard Event** before it
 is stored. This is the contract between the worker (producer) and the API
-(consumer), and the shape Grafana and the report generator read.
+(consumer), and the shape OpenSearch Dashboards and the report generator read.
+The stored documents live in `otg-events-*`; see
+[`opensearch/index-templates/otg-events.json`](../opensearch/index-templates/otg-events.json)
+for the field mappings.
 
 ## Standard Event
 

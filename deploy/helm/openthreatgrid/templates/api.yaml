@@ -32,8 +32,10 @@ spec:
               value: production
             - name: REDIS_URL
               value: redis://redis:6379/0
-            - name: DATABASE_URL
-              value: {{ include "otg.databaseUrl" . | quote }}
+            - name: OPENSEARCH_URL
+              value: http://opensearch:9200
+            - name: OPENSEARCH_INDEX_PREFIX
+              value: otg-events
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
           securityContext:

@@ -64,7 +64,7 @@ Deliverables:
 - `POST /api/v1/events`
 - `GET /api/v1/events`
 - `GET /api/v1/stats/summary`
-- PostgreSQL schema
+- OpenSearch index template (`otg-events-*`)
 - Dockerfile
 - Kubernetes deployment manifest
 
@@ -74,7 +74,7 @@ Goal: make the telemetry visible for portfolio and operational use.
 
 Deliverables:
 
-- Grafana dashboard
+- OpenSearch Dashboards (Threat Overview)
 - Attack timeline panel
 - Top source IP panel
 - Top usernames panel

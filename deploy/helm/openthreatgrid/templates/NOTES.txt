@@ -6,8 +6,8 @@ Components enabled:
   Worker     : {{ .Values.worker.enabled }}
   Cowrie     : {{ .Values.cowrie.enabled }}
   Redis      : {{ .Values.redis.enabled }}
-  PostgreSQL : {{ .Values.postgres.enabled }}
-  Grafana    : {{ .Values.grafana.enabled }}
+  OpenSearch : {{ .Values.opensearch.enabled }}
+  Dashboards : {{ .Values.dashboards.enabled }}
   Reports    : {{ .Values.reports.enabled }}
 
 Next steps:
@@ -16,8 +16,10 @@ Next steps:
   2. Port-forward the API to verify:
        kubectl -n {{ .Release.Namespace }} port-forward svc/otg-api 8000:8000
        curl localhost:8000/health
-  3. Open Grafana:
-       kubectl -n {{ .Release.Namespace }} port-forward svc/grafana 3000:3000
+  3. Open OpenSearch Dashboards (Threat Overview imported automatically):
+       kubectl -n {{ .Release.Namespace }} port-forward svc/opensearch-dashboards 5601:5601
 
-SECURITY: change every "change-me-*" value before any internet exposure, and
-confirm the cowrie-isolation NetworkPolicy is active (no outbound internet).
+SECURITY: OpenSearch runs with the security plugin disabled (internal-only,
+guarded by NetworkPolicy). Enable it with TLS + credentials before any internet
+exposure, and confirm the cowrie-isolation NetworkPolicy is active (no outbound
+internet).

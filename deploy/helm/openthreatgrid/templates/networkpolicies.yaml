@@ -26,7 +26,7 @@ spec:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
 ---
-# API: ingress from worker/grafana/traefik; egress to Postgres + Redis.
+# API: ingress from worker/reports/traefik; egress to OpenSearch + Redis.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -39,16 +39,16 @@ spec:
   ingress:
     - from:
         - podSelector: { matchLabels: { app: otg-worker } }
-        - podSelector: { matchLabels: { app: grafana } }
+        - podSelector: { matchLabels: { app: otg-reports } }
         - namespaceSelector: {}
           podSelector: { matchLabels: { app.kubernetes.io/name: traefik } }
       ports:
         - { protocol: TCP, port: 8000 }
   egress:
     - to:
-        - podSelector: { matchLabels: { app: postgres } }
+        - podSelector: { matchLabels: { app: opensearch } }
       ports:
-        - { protocol: TCP, port: 5432 }
+        - { protocol: TCP, port: 9200 }
     - to:
         - podSelector: { matchLabels: { app: redis } }
       ports:
@@ -74,22 +74,22 @@ spec:
       ports:
         - { protocol: TCP, port: 8000 }
 ---
-# Postgres: ingress from API + Grafana only.
+# OpenSearch: ingress from API + Dashboards only.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: postgres-allow
+  name: opensearch-allow
 spec:
   podSelector:
     matchLabels:
-      app: postgres
+      app: opensearch
   policyTypes: [Ingress]
   ingress:
     - from:
         - podSelector: { matchLabels: { app: otg-api } }
-        - podSelector: { matchLabels: { app: grafana } }
+        - podSelector: { matchLabels: { app: opensearch-dashboards } }
       ports:
-        - { protocol: TCP, port: 5432 }
+        - { protocol: TCP, port: 9200 }
 ---
 # Redis: ingress from Worker + Cowrie (parser sidecar) + API (/ready ping).
 apiVersion: networking.k8s.io/v1
@@ -109,27 +109,56 @@ spec:
       ports:
         - { protocol: TCP, port: 6379 }
 ---
-# Grafana: ingress from Traefik; egress to Postgres.
+# Dashboards: ingress from Traefik + the import hook; egress to OpenSearch + DNS.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: grafana-allow
+  name: opensearch-dashboards-allow
 spec:
   podSelector:
     matchLabels:
-      app: grafana
+      app: opensearch-dashboards
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
         - namespaceSelector: {}
           podSelector: { matchLabels: { app.kubernetes.io/name: traefik } }
+        - podSelector: { matchLabels: { app: otg-dashboards-import } }
       ports:
-        - { protocol: TCP, port: 3000 }
+        - { protocol: TCP, port: 5601 }
   egress:
     - to:
-        - podSelector: { matchLabels: { app: postgres } }
+        - podSelector: { matchLabels: { app: opensearch } }
       ports:
-        - { protocol: TCP, port: 5432 }
+        - { protocol: TCP, port: 9200 }
+    - to:
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { k8s-app: kube-dns } }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+# Dashboards import hook: egress to Dashboards + DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: otg-dashboards-import-allow
+spec:
+  podSelector:
+    matchLabels:
+      app: otg-dashboards-import
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app: opensearch-dashboards } }
+      ports:
+        - { protocol: TCP, port: 5601 }
+    - to:
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { k8s-app: kube-dns } }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
 ---
 # CRITICAL: Cowrie has no outbound internet — only Redis (parser) + DNS.
 # Ingress allowed from Traefik for the honeypot ports.
@@ -162,4 +191,28 @@ spec:
       ports:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
+{{- if .Values.reports.enabled }}
+---
+# Report generator: egress to the API only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: otg-reports-allow
+spec:
+  podSelector:
+    matchLabels:
+      app: otg-reports
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app: otg-api } }
+      ports:
+        - { protocol: TCP, port: 8000 }
+    - to:
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { k8s-app: kube-dns } }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+{{- end }}
 {{- end }}

@@ -19,8 +19,14 @@ class Settings(BaseSettings):
     app_name: str = "openthreatgrid-api"
     environment: str = "development"
 
-    # Database
-    database_url: str = "postgresql+psycopg://otg:otg@localhost:5432/otg"
+    # OpenSearch — the primary event store. Events land in daily indices under
+    # ``otg-events-*``. Local dev runs the cluster with the security plugin
+    # disabled, so no auth/TLS is required out of the box.
+    opensearch_url: str = "http://localhost:9200"
+    opensearch_index_prefix: str = "otg-events"
+    opensearch_username: str | None = None
+    opensearch_password: str | None = None
+    opensearch_verify_certs: bool = False
 
     # Redis (used for readiness checks and the ingestion queue)
     redis_url: str = "redis://localhost:6379/0"

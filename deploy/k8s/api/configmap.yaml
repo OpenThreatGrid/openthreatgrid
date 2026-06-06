@@ -5,6 +5,8 @@ metadata:
   namespace: openthreatgrid
 data:
   ENVIRONMENT: "production"
+  OPENSEARCH_URL: "http://opensearch:9200"
+  OPENSEARCH_INDEX_PREFIX: "otg-events"
   REDIS_URL: "redis://redis:6379/0"
   REDIS_EVENT_QUEUE: "otg:events"
   MAX_BATCH_SIZE: "1000"

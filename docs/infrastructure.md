@@ -20,7 +20,7 @@ cheap DigitalOcean VPS at the edge and an existing on-premise Kubernetes cluster
    │  DC-A  K8s WORKER (32 CPU · 32 GB)            │
    │  Traefik (Proxy Protocol termination)        │
    │   └► Cowrie ─► parser ─► Redis ─► consumer    │
-   │                                  └► API ─► PostgreSQL ─► Grafana / Reports
+   │                                  └► API ─► OpenSearch ─► Dashboards / Reports
    └───────────────────────┬─────────────────────┘
                            │ WireGuard (<30ms)
                            ▼
@@ -80,7 +80,7 @@ Cloudflare in front. Only the dashboard and API hostnames are proxied.
 | Tier | Components | CPU req | RAM req |
 |---|---|---|---|
 | Edge VPS | HAProxy + Tailscale + OS | ~200m | ~328 MB (of 1 GB) |
-| K8s worker | Traefik, Cowrie, API×2, Postgres, Redis, worker, Grafana | ~3.35 cores | ~3.0 Gi (of 32) |
+| K8s worker | Traefik, Cowrie, API×2, OpenSearch, Dashboards, Redis, worker | ~3.5 cores | ~4.5 Gi (of 32) |
 
 Plenty of headroom on the worker for additional sensors post-MVP.
 
@@ -92,6 +92,8 @@ Implemented or documented across `deploy/`:
   fail2ban, unattended-upgrades — see `deploy/edge/setup-edge.sh`.
 - Cowrie: non-root, dropped capabilities, seccomp, and a NetworkPolicy that
   blocks **all** outbound internet — see `deploy/k8s/cowrie/networkpolicy.yaml`.
-- Postgres/Grafana credentials in Secrets; Grafana uses a read-only DB role.
+- OpenSearch runs internal-only with the security plugin disabled, guarded by
+  NetworkPolicy (only the API and Dashboards reach `:9200`); enable the security
+  plugin with TLS + credentials before any exposure.
 - Master node tainted `NoSchedule`; schedule regular etcd backups (single
   master is a SPOF).

@@ -1,45 +1,27 @@
-"""Shared pytest fixtures: an isolated in-memory SQLite app per test."""
-
-import importlib
+"""Shared pytest fixtures: an isolated in-memory event store per test."""
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.db.session import Base, get_db
 from app.main import app
+from app.store import get_store
+from app.store.memory_store import MemoryStore
 
 
 @pytest.fixture()
 def client():
-    """Yield a TestClient backed by a fresh in-memory database."""
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    """Yield a TestClient backed by a fresh in-memory store.
 
-    importlib.import_module("app.models")  # ensure models are registered
-
-    Base.metadata.create_all(bind=engine)
-
-    def override_get_db():
-        db = TestingSessionLocal()
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app.dependency_overrides[get_db] = override_get_db
+    The store dependency is overridden so the real OpenSearch client is never
+    constructed during the test suite.
+    """
+    store = MemoryStore()
+    app.dependency_overrides[get_store] = lambda: store
     # Construct the client WITHOUT a context manager so the app lifespan (which
-    # would init the real Postgres engine) is not triggered during tests.
+    # would reach out to OpenSearch) is not triggered during tests.
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()
-    Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture()

@@ -30,26 +30,18 @@ helm:
       sensorId: cowrie-prod-01
     redis:
       enabled: true
-    postgres:
+    opensearch:
       enabled: true
-      storage: 10Gi
-      auth:
-        database: otg
-        username: otg
-        # password comes from the otg-fleet-values Secret (valuesFrom below)
-    grafana:
+      storage: 100Gi
+    dashboards:
       enabled: true
-      # adminPassword comes from the otg-fleet-values Secret (valuesFrom below)
     reports:
       enabled: true
     networkPolicies:
       enabled: true
 
-  # Secrets (postgres/grafana passwords) are layered on top from a cluster
-  # Secret so they never live in Git. Create it first:
-  #   deploy/k8s/secrets/create-fleet-secret.sh
-  valuesFrom:
-    - secretKeyRef:
-        name: otg-fleet-values
-        namespace: openthreatgrid
-        key: values.yaml
+  # OpenSearch runs internal-only with the security plugin disabled, so no
+  # database/dashboard passwords are required. If you enable the security
+  # plugin for exposure, layer credentials in from a cluster Secret here:
+  #   valuesFrom:
+  #     - secretKeyRef: { name: otg-fleet-values, namespace: openthreatgrid, key: values.yaml }

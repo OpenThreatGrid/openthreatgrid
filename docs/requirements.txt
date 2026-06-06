@@ -1,0 +1,5 @@
+# Documentation site (MkDocs Material). Build with:
+#   pip install -r docs/requirements.txt
+#   mkdocs serve   # or: mkdocs build
+mkdocs-material==9.5.49
+pymdown-extensions==10.12

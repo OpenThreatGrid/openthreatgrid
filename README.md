@@ -24,8 +24,8 @@ The first public version focuses on a simple end-to-end pipeline:
 1. Deploy a Cowrie SSH/Telnet honeypot sensor on Kubernetes.
 2. Parse Cowrie logs into a normalized OpenThreatGrid event schema.
 3. Send events to a FastAPI ingestion API.
-4. Store normalized events in PostgreSQL.
-5. Visualize telemetry with Grafana.
+4. Store normalized events in OpenSearch (`otg-events-*`).
+5. Visualize telemetry with OpenSearch Dashboards.
 6. Generate weekly Markdown threat reports.
 
 ## Architecture
@@ -37,15 +37,15 @@ Internet
 [Honeypot Sensors]
    |
    v
-[Log Shipper / Parser]
+[Log Shipper / Parser] --> [Redis queue]
    |
    v
 [OpenThreatGrid API]
    |
    v
-[PostgreSQL]
+[OpenSearch  (otg-events-*)]
    |
-   +--> [Grafana Dashboard]
+   +--> [OpenSearch Dashboards]
    |
    +--> [Weekly Report Generator]
 ```
@@ -54,16 +54,20 @@ See [`docs/architecture.md`](docs/architecture.md) for details.
 
 ## Quick Start (local)
 
-The full pipeline — Cowrie → parser → Redis → consumer → API → PostgreSQL →
-Grafana — runs locally with Docker Compose:
+The full pipeline — Cowrie → parser → Redis → consumer → API → OpenSearch →
+OpenSearch Dashboards — runs locally with Docker Compose:
 
 ```bash
 ./scripts/run_local.sh         # or: docker compose up --build
 ```
 
-- API docs:  http://localhost:8000/docs
-- Stats:     http://localhost:8000/api/v1/stats/summary
-- Grafana:   http://localhost:3000  (admin / admin)
+`run_local.sh` also installs the index template and imports the Threat Overview
+dashboard (or run `./scripts/bootstrap_opensearch.sh` yourself).
+
+- API docs:    http://localhost:8000/docs
+- Stats:       http://localhost:8000/api/v1/stats/summary
+- Dashboards:  http://localhost:5601  (Threat Overview)
+- OpenSearch:  http://localhost:9200
 - Poke the honeypot:  `ssh -p 2222 root@localhost`
 
 Run the test suites without Docker:
@@ -84,11 +88,11 @@ openthreatgrid/
 ├── workers/otg-worker/     Cowrie→OTG parser + enrichment consumer
 ├── sensors/cowrie/         Cowrie honeypot image + config overrides
 ├── reports/                Weekly Jinja2 threat-intel report generator
-├── dashboard/grafana/      Provisioned datasource + 10-panel dashboard
+├── opensearch/             Index template + Dashboards saved objects (NDJSON)
 ├── deploy/
 │   ├── edge/               DO VPS: HAProxy + Tailscale + UFW bootstrap
-│   ├── k8s/                Namespace, Traefik, Postgres, Redis, Cowrie, API,
-│   │                       worker, Grafana, reports, NetworkPolicies, kustomize
+│   ├── k8s/                Namespace, Traefik, OpenSearch, Dashboards, Redis,
+│   │                       Cowrie, API, worker, reports, NetworkPolicies, kustomize
 │   └── helm/               Helm chart (openthreatgrid)
 ├── examples/               Sample Cowrie logs + normalized OTG events
 ├── scripts/                run_local, seed_sample_data, test_proxy_protocol
@@ -124,8 +128,8 @@ Recommended MVP services:
 - `otg-cowrie-sensor`
 - `otg-api`
 - `otg-worker`
-- `postgres`
-- `grafana`
+- `opensearch`
+- `opensearch-dashboards`
 
 ## Safety Principles
 

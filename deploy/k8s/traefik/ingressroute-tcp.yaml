@@ -48,7 +48,7 @@ spec:
     - match: Host(`dashboard.openthreatgrid.io`)
       kind: Rule
       services:
-        - name: grafana
-          port: 3000
+        - name: opensearch-dashboards
+          port: 5601
   tls:
     certResolver: default

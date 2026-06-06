@@ -19,12 +19,14 @@ Requires Docker + Docker Compose.
 # or: docker compose up --build
 ```
 
-This starts Postgres, Redis, the API, the worker (consumer), Cowrie, the parser
-sidecar, and Grafana, then seeds sample data. Then:
+This starts OpenSearch, OpenSearch Dashboards, Redis, the API, the worker
+(consumer), Cowrie, and the parser sidecar; installs the index template; imports
+the Threat Overview dashboard; and seeds sample data. Then:
 
-- API docs: http://localhost:8000/docs
-- Stats:    http://localhost:8000/api/v1/stats/summary
-- Grafana:  http://localhost:3000 (admin / admin)
+- API docs:   http://localhost:8000/docs
+- Stats:      http://localhost:8000/api/v1/stats/summary
+- Dashboards: http://localhost:5601 (Threat Overview)
+- OpenSearch: http://localhost:9200
 - Poke the honeypot: `ssh -p 2222 root@localhost`
 
 Tear down: `docker compose down -v`.
@@ -54,12 +56,14 @@ Namespace `openthreatgrid`. Full steps and apply order in
 ```bash
 kubectl apply -f deploy/k8s/namespace.yaml
 helm upgrade --install traefik traefik/traefik -n openthreatgrid -f deploy/k8s/traefik/values.yaml
-kubectl apply -k deploy/k8s
-kubectl -n openthreatgrid create configmap grafana-dashboards \
-  --from-file=openthreatgrid.json=dashboard/grafana/provisioning/dashboards/openthreatgrid.json \
-  --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -k deploy/k8s   # includes OpenSearch, Dashboards, and the saved-objects import Job
 kubectl apply -f deploy/k8s/traefik/ingressroute-tcp.yaml
 ```
+
+The API creates the `otg-events` index template on startup, and the
+`otg-dashboards-import` Job loads the Threat Overview dashboard once Dashboards
+is ready. Regenerate the saved objects after editing them with
+`python opensearch/dashboards/build_saved_objects.py`.
 
 Build & push images first (or let `.github/workflows/docker-build.yml` do it):
 `otg-api`, `otg-worker`, `otg-reports`, `cowrie` → `ghcr.io/openthreatgrid/*`.
@@ -70,10 +74,12 @@ Build & push images first (or let `.github/workflows/docker-build.yml` do it):
 
 ```bash
 helm install otg deploy/helm/openthreatgrid \
-  --namespace openthreatgrid --create-namespace \
-  --set postgres.auth.password=$(openssl rand -hex 16) \
-  --set grafana.adminPassword=$(openssl rand -hex 16)
+  --namespace openthreatgrid --create-namespace
 ```
+
+The chart ships OpenSearch (security plugin disabled, internal-only) and
+OpenSearch Dashboards, and runs a `post-install`/`post-upgrade` hook that imports
+the Threat Overview dashboard.
 
 Toggle components with `--set <component>.enabled=false`. Values reference in
 [`deploy/helm/openthreatgrid/values.yaml`](../deploy/helm/openthreatgrid/values.yaml).
@@ -97,9 +103,9 @@ Order (matches the development plan's deployment order):
  8. [DC-A]    Helm install Traefik (TCP + Proxy Protocol)
  9. [DO VPS]  ./deploy/edge/setup-edge.sh   (HAProxy + UFW + hardening)
 10. [DO VPS]  Verify edge → Traefik reachability
-11. [DC-A]    Deploy Postgres, Redis, API, Cowrie+parser, worker
-12. [DC-A]    Verify end-to-end: attacker IP visible in PostgreSQL events
-13. [DC-A]    Deploy Grafana; apply IngressRoutes
+11. [DC-A]    Deploy OpenSearch, Redis, API, Cowrie+parser, worker
+12. [DC-A]    Verify end-to-end: attacker IP visible in otg-events-* (GET /api/v1/events)
+13. [DC-A]    Deploy OpenSearch Dashboards; apply IngressRoutes
 14. [CF]      Configure Cloudflare DNS (dashboard + API only)
 15. [ALL]     Apply NetworkPolicies; UFW lockdown; verify Cowrie has no egress
 ```

@@ -11,11 +11,12 @@ namespace: openthreatgrid
 resources:
   - namespace.yaml
   - networkpolicy-global.yaml
-  - postgres/secret.yaml
-  - postgres/configmap.yaml
-  - postgres/statefulset.yaml
-  - postgres/service.yaml
-  - postgres/networkpolicy.yaml
+  - opensearch/statefulset.yaml
+  - opensearch/service.yaml
+  - opensearch-dashboards/deployment.yaml
+  - opensearch-dashboards/service.yaml
+  - opensearch-dashboards/dashboards-configmap.yaml
+  - opensearch-dashboards/bootstrap-job.yaml
   - redis/deployment.yaml
   - redis/service.yaml
   - api/configmap.yaml
@@ -25,7 +26,4 @@ resources:
   - cowrie/deployment.yaml
   - cowrie/service.yaml
   - cowrie/networkpolicy.yaml
-  - grafana/configmap-provisioning.yaml
-  - grafana/deployment.yaml
-  - grafana/service.yaml
   - reports/cronjob.yaml
