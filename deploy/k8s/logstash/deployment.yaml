@@ -29,7 +29,6 @@ spec:
             - { containerPort: 5044, name: beats }
           env:
             - { name: LS_JAVA_OPTS, value: "-Xms512m -Xmx512m" }
-            - { name: XPACK_MONITORING_ENABLED, value: "false" }
           resources:
             requests: { cpu: "500m", memory: 1Gi }
             limits:   { cpu: "1500m", memory: 1536Mi }

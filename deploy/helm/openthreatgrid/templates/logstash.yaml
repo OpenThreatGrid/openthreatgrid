@@ -28,7 +28,6 @@ spec:
             - { containerPort: 5044, name: beats }
           env:
             - { name: LS_JAVA_OPTS, value: {{ .Values.logstash.javaOpts | quote }} }
-            - { name: XPACK_MONITORING_ENABLED, value: "false" }
           resources:
             {{- toYaml .Values.logstash.resources | nindent 12 }}
           securityContext:

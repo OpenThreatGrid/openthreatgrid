@@ -12,4 +12,5 @@ RUN bin/logstash-plugin install logstash-output-opensearch
 # over /usr/share/logstash/pipeline for live edits.
 COPY pipeline/ /usr/share/logstash/pipeline/
 
-ENV XPACK_MONITORING_ENABLED=false
+# NOTE: do NOT set XPACK_MONITORING_ENABLED here — the -oss build has no X-Pack,
+# so that setting is unregistered and Logstash exits FATAL on startup.
