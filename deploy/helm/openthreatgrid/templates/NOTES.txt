@@ -12,12 +12,13 @@ Components enabled:
 
 Ingestion: sensors → Filebeat (sidecar) → Logstash → OpenSearch (otg-events-*).
 
+The post-install hook (otg-dashboards-import) installs the OTG index template
+and imports the dashboards automatically once OpenSearch is up.
+
 Next steps:
   1. Install Traefik with the TCP entrypoints (deploy/k8s/traefik/values.yaml)
      and apply deploy/k8s/traefik/ingressroute-tcp.yaml.
-  2. Ensure the OTG index template exists (scripts/bootstrap_opensearch.sh) so
-     Logstash writes correct mappings.
-  3. Open OpenSearch Dashboards (Threat Overview imported automatically):
+  2. Open OpenSearch Dashboards (Threat Overview imported automatically):
        kubectl -n {{ .Release.Namespace }} port-forward svc/opensearch-dashboards 5601:5601
 
 SECURITY: OpenSearch runs with the security plugin disabled (internal-only,

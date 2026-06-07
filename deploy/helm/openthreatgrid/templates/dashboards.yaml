@@ -66,6 +66,50 @@ data:
   otg-dashboards.ndjson: |
 {{ .Files.Get "files/otg-dashboards.ndjson" | indent 4 }}
 ---
+# OTG index template. Logstash uses manage_template=false, so the bootstrap hook
+# below installs this before any events land (otherwise fields default to text).
+# Mirrors opensearch/index-templates/otg-events.json.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otg-index-template
+  labels:
+    {{- include "otg.labels" . | nindent 4 }}
+data:
+  otg-events.json: |
+    {
+      "index_patterns": ["otg-events-*"],
+      "template": {
+        "settings": { "number_of_shards": 1, "number_of_replicas": 0 },
+        "mappings": {
+          "properties": {
+            "event_id": { "type": "keyword" },
+            "timestamp": { "type": "date" },
+            "ingested_at": { "type": "date" },
+            "sensor_id": { "type": "keyword" },
+            "sensor_type": { "type": "keyword" },
+            "event_type": { "type": "keyword" },
+            "source_ip": { "type": "ip" },
+            "source_port": { "type": "integer" },
+            "destination_ip": { "type": "ip" },
+            "destination_port": { "type": "integer" },
+            "protocol": { "type": "keyword" },
+            "username": { "type": "keyword" },
+            "password": { "type": "keyword" },
+            "command": { "type": "keyword", "ignore_above": 1024 },
+            "payload_url": { "type": "keyword", "ignore_above": 2048 },
+            "payload_hash": { "type": "keyword" },
+            "session_id": { "type": "keyword" },
+            "success": { "type": "boolean" },
+            "geo_country": { "type": "keyword" },
+            "geo_asn": { "type": "keyword" },
+            "tags": { "type": "keyword" },
+            "raw_event": { "type": "object", "enabled": false }
+          }
+        }
+      }
+    }
+---
 # Post-install/upgrade hook: import the saved objects once Dashboards is up.
 apiVersion: batch/v1
 kind: Job
@@ -97,6 +141,12 @@ spec:
           args:
             - |
               set -e
+              echo "Installing index template..."
+              until curl -sf "http://opensearch:9200/_cluster/health" >/dev/null; do sleep 5; done
+              curl -sf -X PUT "http://opensearch:9200/_index_template/otg-events" \
+                -H "Content-Type: application/json" \
+                --data-binary @/template/otg-events.json
+              echo "Importing dashboards..."
               until curl -sf "http://opensearch-dashboards:5601/api/status" >/dev/null; do sleep 5; done
               curl -sf -X POST \
                 "http://opensearch-dashboards:5601/api/saved_objects/_import?overwrite=true" \
@@ -105,6 +155,9 @@ spec:
           volumeMounts:
             - name: objects
               mountPath: /objects
+              readOnly: true
+            - name: template
+              mountPath: /template
               readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
@@ -115,4 +168,7 @@ spec:
         - name: objects
           configMap:
             name: otg-dashboards
+        - name: template
+          configMap:
+            name: otg-index-template
 {{- end }}

@@ -68,6 +68,7 @@ spec:
         - podSelector: { matchLabels: { app: logstash } }
         - podSelector: { matchLabels: { app: opensearch-dashboards } }
         - podSelector: { matchLabels: { app: otg-reports } }
+        - podSelector: { matchLabels: { app: otg-dashboards-import } }
       ports:
         - { protocol: TCP, port: 9200 }
 ---
@@ -111,6 +112,10 @@ spec:
       app: otg-dashboards-import
   policyTypes: [Egress]
   egress:
+    - to:
+        - podSelector: { matchLabels: { app: opensearch } }
+      ports:
+        - { protocol: TCP, port: 9200 }
     - to:
         - podSelector: { matchLabels: { app: opensearch-dashboards } }
       ports:

@@ -1,0 +1,41 @@
+# OTG index template, mounted by the bootstrap Job (otg-dashboards-import).
+# Mirrors opensearch/index-templates/otg-events.json — keep in sync.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otg-index-template
+  namespace: openthreatgrid
+data:
+  otg-events.json: |
+    {
+      "index_patterns": ["otg-events-*"],
+      "template": {
+        "settings": { "number_of_shards": 1, "number_of_replicas": 0 },
+        "mappings": {
+          "properties": {
+            "event_id": { "type": "keyword" },
+            "timestamp": { "type": "date" },
+            "ingested_at": { "type": "date" },
+            "sensor_id": { "type": "keyword" },
+            "sensor_type": { "type": "keyword" },
+            "event_type": { "type": "keyword" },
+            "source_ip": { "type": "ip" },
+            "source_port": { "type": "integer" },
+            "destination_ip": { "type": "ip" },
+            "destination_port": { "type": "integer" },
+            "protocol": { "type": "keyword" },
+            "username": { "type": "keyword" },
+            "password": { "type": "keyword" },
+            "command": { "type": "keyword", "ignore_above": 1024 },
+            "payload_url": { "type": "keyword", "ignore_above": 2048 },
+            "payload_hash": { "type": "keyword" },
+            "session_id": { "type": "keyword" },
+            "success": { "type": "boolean" },
+            "geo_country": { "type": "keyword" },
+            "geo_asn": { "type": "keyword" },
+            "tags": { "type": "keyword" },
+            "raw_event": { "type": "object", "enabled": false }
+          }
+        }
+      }
+    }

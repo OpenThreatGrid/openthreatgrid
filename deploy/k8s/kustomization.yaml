@@ -16,6 +16,7 @@ resources:
   - opensearch-dashboards/deployment.yaml
   - opensearch-dashboards/service.yaml
   - opensearch-dashboards/dashboards-configmap.yaml
+  - opensearch-dashboards/index-template-configmap.yaml
   - opensearch-dashboards/bootstrap-job.yaml
   # Ingestion pipeline (topology A): sensors → Filebeat → Logstash → OpenSearch.
   - filebeat/configmap.yaml

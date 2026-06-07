@@ -37,6 +37,9 @@ spec:
         - podSelector:
             matchLabels:
               app: otg-reports
+        - podSelector:
+            matchLabels:
+              app: otg-dashboards-import
       ports:
         - protocol: TCP
           port: 9200

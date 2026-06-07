@@ -1,8 +1,8 @@
-# One-shot Job that imports the OpenThreatGrid saved objects (index pattern +
-# Threat Overview dashboard) into OpenSearch Dashboards. The index template
-# itself is created automatically by the API at startup.
+# One-shot Job that installs the OTG index template (Logstash uses
+# manage_template=false) and imports the saved objects (index pattern + Threat
+# Overview dashboard) into OpenSearch Dashboards.
 #
-# Re-run after updating opensearch/dashboards/otg-dashboards.ndjson:
+# Re-run after updating the template or dashboards:
 #   kubectl -n openthreatgrid delete job otg-dashboards-import --ignore-not-found
 #   kubectl apply -k deploy/k8s
 apiVersion: batch/v1
@@ -31,6 +31,11 @@ spec:
           args:
             - |
               set -e
+              echo "Installing index template..."
+              until curl -sf "http://opensearch:9200/_cluster/health" >/dev/null; do sleep 5; done
+              curl -sf -X PUT "http://opensearch:9200/_index_template/otg-events" \
+                -H "Content-Type: application/json" \
+                --data-binary @/template/otg-events.json
               echo "Waiting for OpenSearch Dashboards..."
               until curl -sf "http://opensearch-dashboards:5601/api/status" >/dev/null; do
                 sleep 5
@@ -45,6 +50,9 @@ spec:
             - name: objects
               mountPath: /objects
               readOnly: true
+            - name: template
+              mountPath: /template
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -54,6 +62,9 @@ spec:
         - name: objects
           configMap:
             name: otg-dashboards
+        - name: template
+          configMap:
+            name: otg-index-template
 ---
 # The import Job needs egress to the Dashboards service + DNS.
 apiVersion: networking.k8s.io/v1
@@ -68,6 +79,13 @@ spec:
   policyTypes:
     - Egress
   egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: opensearch
+      ports:
+        - protocol: TCP
+          port: 9200
     - to:
         - podSelector:
             matchLabels:
