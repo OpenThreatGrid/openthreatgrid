@@ -40,6 +40,16 @@ spec:
             tcpSocket: { port: 5044 }
             initialDelaySeconds: 30
             periodSeconds: 10
+          # Pipeline from a ConfigMap (configMapGenerator in kustomization.yaml),
+          # so pipeline fixes need no image rebuild.
+          volumeMounts:
+            - name: pipeline
+              mountPath: /usr/share/logstash/pipeline
+              readOnly: true
+      volumes:
+        - name: pipeline
+          configMap:
+            name: logstash-pipeline
 ---
 apiVersion: v1
 kind: Service

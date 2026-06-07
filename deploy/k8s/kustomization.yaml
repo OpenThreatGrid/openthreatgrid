@@ -32,3 +32,12 @@ resources:
   # - http-trap/deployment.yaml
   # - http-trap/service.yaml
   - reports/cronjob.yaml
+
+configMapGenerator:
+  # Logstash pipeline mounted into the Deployment; synced from the canonical
+  # otg.conf by scripts/sync_logstash_pipeline.sh. The default name-suffix hash
+  # makes the Deployment roll automatically when the pipeline content changes
+  # (kustomize rewrites the volume's configMap reference to the hashed name).
+  - name: logstash-pipeline
+    files:
+      - logstash/otg.conf

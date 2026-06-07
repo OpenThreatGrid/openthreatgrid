@@ -1,4 +1,17 @@
 {{- if .Values.logstash.enabled }}
+# Pipeline mounted from a ConfigMap (not baked into the image), so pipeline
+# fixes ship via git + rollout — no image rebuild. Keep in sync with
+# deploy/filebeat-logstash/logstash/pipeline/otg.conf via scripts/sync_logstash_pipeline.sh.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-pipeline
+  labels:
+    {{- include "otg.labels" . | nindent 4 }}
+data:
+  otg.conf: |
+{{ .Files.Get "files/otg.conf" | indent 4 }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,6 +28,9 @@ spec:
     metadata:
       labels:
         app: logstash
+      annotations:
+        # Roll the pod automatically when the pipeline changes.
+        checksum/pipeline: {{ .Files.Get "files/otg.conf" | sha256sum }}
     spec:
       securityContext:
         runAsNonRoot: true
@@ -38,6 +54,14 @@ spec:
             tcpSocket: { port: 5044 }
             initialDelaySeconds: 30
             periodSeconds: 10
+          volumeMounts:
+            - name: pipeline
+              mountPath: /usr/share/logstash/pipeline
+              readOnly: true
+      volumes:
+        - name: pipeline
+          configMap:
+            name: logstash-pipeline
 ---
 apiVersion: v1
 kind: Service
