@@ -50,6 +50,7 @@ spec:
     metadata:
       labels:
         app: cowrie
+        otg-role: sensor   # required: logstash-allow admits sensors by this label
     spec:
       securityContext:
         fsGroup: 999
