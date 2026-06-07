@@ -22,59 +22,68 @@ The project combines four core areas:
 The first public version focuses on a simple end-to-end pipeline:
 
 1. Deploy a Cowrie SSH/Telnet honeypot sensor on Kubernetes.
-2. Parse Cowrie logs into a normalized OpenThreatGrid event schema.
-3. Send events to a FastAPI ingestion API.
+2. Ship its logs with Filebeat (sidecar) to Logstash.
+3. Normalize + enrich into the OpenThreatGrid event schema in Logstash.
 4. Store normalized events in OpenSearch (`otg-events-*`).
 5. Visualize telemetry with OpenSearch Dashboards.
 6. Generate weekly Markdown threat reports.
 
 ## Architecture
 
+Ingestion uses **topology A**: each sensor's log is shipped by **Filebeat** to a
+single **Logstash** that normalizes + enriches and writes straight to OpenSearch
+(Apache-2.0 `-oss` builds; Logstash carries the `logstash-output-opensearch`
+plugin).
+
 ```text
 Internet
    |
    v
-[Honeypot Sensors]
-   |
+[Honeypot Sensors]  (Cowrie, OpenCanary, HTTP trap)
+   |  cowrie.json / opencanary.log / http-trap.log
    v
-[Log Shipper / Parser] --> [Redis queue]
-   |
-   v
-[OpenThreatGrid API]
-   |
-   v
-[OpenSearch  (otg-events-*)]
-   |
-   +--> [OpenSearch Dashboards]
-   |
-   +--> [Weekly Report Generator]
+[Filebeat sidecar] ──► [Logstash]  (normalize + enrich + GeoIP)
+                           |
+                           v
+                  [OpenSearch  (otg-events-*)]
+                           |
+              +------------+------------+
+              v                         v
+   [OpenSearch Dashboards]   [Weekly Report Generator]
 ```
 
-See [`docs/architecture.md`](docs/architecture.md) for details.
+See [`docs/architecture.md`](docs/architecture.md) and
+[`docs/filebeat-logstash.md`](docs/filebeat-logstash.md) for details.
 
 ## Quick Start (local)
 
-The full pipeline — Cowrie → parser → Redis → consumer → API → OpenSearch →
-OpenSearch Dashboards — runs locally with Docker Compose:
+The full pipeline — Cowrie → Filebeat → Logstash → OpenSearch → Dashboards —
+runs locally with Docker Compose:
 
 ```bash
-./scripts/run_local.sh         # or: docker compose up --build
+./scripts/run_local.sh
 ```
 
-`run_local.sh` also installs the index template and imports the Threat Overview
-dashboard (or run `./scripts/bootstrap_opensearch.sh` yourself).
+`run_local.sh` brings up OpenSearch, installs the index template, imports the
+dashboards (`./scripts/bootstrap_opensearch.sh`), seeds sample data, then starts
+Logstash + Cowrie + Filebeat.
 
-- API docs:    http://localhost:8000/docs
-- Stats:       http://localhost:8000/api/v1/stats/summary
 - Dashboards:  http://localhost:5601  (Threat Overview)
 - OpenSearch:  http://localhost:9200
 - Poke the honeypot:  `ssh -p 2222 root@localhost`
 
-Run the test suites without Docker:
+Run the Python test suites without Docker:
 
 ```bash
-cd backend/otg-api  && pip install -r requirements-dev.txt && pytest
-cd workers/otg-worker && pip install -r requirements-dev.txt && pytest
+cd reports           && pip install -r requirements-dev.txt && pytest
+cd sensors/http-trap && pip install -r requirements-dev.txt && pytest
+```
+
+Validate the Logstash pipeline:
+
+```bash
+docker run --rm ghcr.io/openthreatgrid/otg-logstash:main \
+  logstash -t -f /usr/share/logstash/pipeline/otg.conf
 ```
 
 See [`docs/deployment-guide.md`](docs/deployment-guide.md) for Kubernetes/Helm
@@ -84,15 +93,14 @@ and production bring-up.
 
 ```text
 openthreatgrid/
-├── backend/otg-api/        FastAPI ingestion + query API (events, stats, health)
-├── workers/otg-worker/     Cowrie→OTG parser + enrichment consumer
-├── sensors/cowrie/         Cowrie honeypot image + config overrides
-├── reports/                Weekly Jinja2 threat-intel report generator
+├── sensors/                Cowrie, OpenCanary, HTTP trap (+ mmproxy) images/config
+├── deploy/filebeat-logstash/  Logstash image (oss + opensearch output) + pipeline + filebeat config
+├── reports/                Weekly Jinja2 threat-intel report generator (reads OpenSearch)
 ├── opensearch/             Index template + Dashboards saved objects (NDJSON)
 ├── deploy/
 │   ├── edge/               DO VPS: HAProxy + Tailscale + UFW bootstrap
-│   ├── k8s/                Namespace, Traefik, OpenSearch, Dashboards, Redis,
-│   │                       Cowrie, API, worker, reports, NetworkPolicies, kustomize
+│   ├── k8s/                Namespace, Traefik, OpenSearch, Dashboards, Logstash,
+│   │                       sensors (Filebeat sidecars), reports, NetworkPolicies, kustomize
 │   └── helm/               Helm chart (openthreatgrid)
 ├── examples/               Sample Cowrie logs + normalized OTG events
 ├── scripts/                run_local, seed_sample_data, test_proxy_protocol
@@ -125,9 +133,8 @@ OpenThreatGrid is designed to run on Kubernetes from the beginning. The initial 
 
 Recommended MVP services:
 
-- `otg-cowrie-sensor`
-- `otg-api`
-- `otg-worker`
+- `cowrie` (sensor + Filebeat sidecar)
+- `logstash`
 - `opensearch`
 - `opensearch-dashboards`
 

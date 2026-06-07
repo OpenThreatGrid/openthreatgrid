@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: http-trap
+  namespace: openthreatgrid
+  labels:
+    app: http-trap
+spec:
+  selector:
+    app: http-trap
+  ports:
+    - { port: 8080, targetPort: 8080, name: http }
+---
+# CRITICAL: like Cowrie, the trap has NO outbound internet — only the parser
+# sidecar reaches Redis, plus DNS. Ingress allowed from Traefik for the decoy
+# HTTP port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: http-trap-isolation
+  namespace: openthreatgrid
+spec:
+  podSelector:
+    matchLabels:
+      app: http-trap
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: logstash
+      ports:
+        - { protocol: TCP, port: 5044 }
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }

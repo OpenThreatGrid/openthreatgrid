@@ -13,8 +13,8 @@ spec:
       targetPort: 9200
       name: http
 ---
-# OpenSearch accepts connections only from the API (ingestion/query) and
-# OpenSearch Dashboards (visualization).
+# OpenSearch accepts connections only from Logstash (ingestion), OpenSearch
+# Dashboards (visualization), and the report generator (read).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -30,10 +30,13 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              app: otg-api
+              app: logstash
         - podSelector:
             matchLabels:
               app: opensearch-dashboards
+        - podSelector:
+            matchLabels:
+              app: otg-reports
       ports:
         - protocol: TCP
           port: 9200

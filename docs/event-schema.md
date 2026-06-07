@@ -1,9 +1,9 @@
 # OpenThreatGrid Event Schema
 
 Every sensor's output is normalized to a single **OTG Standard Event** before it
-is stored. This is the contract between the worker (producer) and the API
-(consumer), and the shape OpenSearch Dashboards and the report generator read.
-The stored documents live in `otg-events-*`; see
+is stored. The Logstash pipeline produces it from each sensor's raw log, and
+OpenSearch Dashboards and the report generator read it. The stored documents
+live in `otg-events-*`; see
 [`opensearch/index-templates/otg-events.json`](../opensearch/index-templates/otg-events.json)
 for the field mappings.
 
@@ -73,25 +73,29 @@ for the field mappings.
 | `session_close` | `cowrie.session.closed` | Session ended |
 | `connection` | `cowrie.session.connect` | TCP connection event |
 
-The Cowrie → OTG mapping is implemented in
-[`workers/otg-worker/worker/cowrie_mapper.py`](../workers/otg-worker/worker/cowrie_mapper.py)
-and validated by `tests/test_cowrie_mapper.py`.
+The Cowrie/OpenCanary/HTTP-trap → OTG mapping is implemented in the Logstash
+pipeline
+[`deploy/filebeat-logstash/logstash/pipeline/otg.conf`](../deploy/filebeat-logstash/logstash/pipeline/otg.conf)
+(one branch per `log_type`).
 
 ## Enrichment tags
 
-The worker's `enrichment.py` adds tags without external services:
+The Logstash `ruby` enrichment filter adds tags without external services:
 
-- protocol (`ssh`, `telnet`)
+- protocol (`ssh`, `telnet`, `http`, …)
 - `private_ip` / `loopback` / `invalid_ip`
 - behavioural: `download`, `execution`, `persistence`, `recon`, `miner`
 - `botnet_indicator` (any behavioural tag present)
 - `payload` (a download URL is present)
+- `deception` (+ `canary` / `credential` / `scan`) for the deception sensors
 
-## Validation
+## Storage shape
 
-The API validates every event with the Pydantic schema in
-[`backend/otg-api/app/schemas/event_schema.py`](../backend/otg-api/app/schemas/event_schema.py).
-Unknown `event_type` values are rejected with HTTP 422.
+Field types are fixed by the index template
+[`opensearch/index-templates/otg-events.json`](../opensearch/index-templates/otg-events.json)
+(keyword/ip/date), so aggregations are exact. Events are written idempotently
+(`action => create`, `_id = event_id`), so a Filebeat/Logstash retry never
+duplicates telemetry.
 
 ## Privacy
 

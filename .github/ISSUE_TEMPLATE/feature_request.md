@@ -16,11 +16,11 @@ A clear description of what you'd like to happen.
 
 ## Component
 
-- [ ] otg-api
-- [ ] otg-worker
+- [ ] sensors (cowrie / opencanary / http-trap)
+- [ ] ingestion (filebeat / logstash)
+- [ ] opensearch / dashboards
 - [ ] reports
 - [ ] deploy / infrastructure
-- [ ] dashboard
 - [ ] new sensor
 
 ## Alternatives considered

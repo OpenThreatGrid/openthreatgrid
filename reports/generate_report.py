@@ -4,7 +4,7 @@
 The report is built entirely from normalized events for a time window. Events
 can come from either:
 
-  * a running OTG API   (``--api-url http://localhost:8000``), or
+  * OpenSearch          (``--opensearch-url http://localhost:9200``), or
   * a local JSON file   (``--from-file events.json``) for offline/demo use.
 
 Aggregations (top IPs, credentials, commands, downloads, botnet indicators) are
@@ -35,31 +35,53 @@ def _counts(values: list[str | None], limit: int | None = 10) -> list[dict]:
     return [{"key": k, "count": c} for k, c in items]
 
 
-def fetch_events_api(api_url: str, since: datetime, until: datetime) -> list[dict]:
-    """Page through ``GET /api/v1/events`` for the window."""
+def fetch_events_opensearch(os_url: str, since: datetime, until: datetime,
+                            page: int = 1000) -> list[dict]:
+    """Page through ``otg-events-*`` in OpenSearch for the window via search_after."""
     import httpx
 
+    base = os_url.rstrip("/")
+    rng = {"range": {"timestamp": {"gte": since.isoformat(), "lte": until.isoformat()}}}
     events: list[dict] = []
-    offset = 0
-    page = 1000
+    search_after: list | None = None
     with httpx.Client(timeout=30.0) as http:
         while True:
-            resp = http.get(
-                f"{api_url}/api/v1/events",
-                params={
-                    "since": since.isoformat(),
-                    "until": until.isoformat(),
-                    "limit": page,
-                    "offset": offset,
-                },
+            body: dict[str, Any] = {
+                "size": page,
+                "query": rng,
+                "sort": [{"timestamp": "asc"}, {"event_id": "asc"}],
+            }
+            if search_after:
+                body["search_after"] = search_after
+            resp = http.post(
+                f"{base}/otg-events-*/_search",
+                json=body,
+                params={"ignore_unavailable": "true"},
             )
             resp.raise_for_status()
-            batch = resp.json()
-            events.extend(batch)
-            if len(batch) < page:
+            hits = resp.json().get("hits", {}).get("hits", [])
+            if not hits:
                 break
-            offset += page
+            events.extend(h["_source"] for h in hits)
+            if len(hits) < page:
+                break
+            search_after = hits[-1]["sort"]
     return events
+
+
+def count_events_opensearch(os_url: str, since: datetime, until: datetime) -> int:
+    """Count events in a window (used for the prior-period delta)."""
+    import httpx
+
+    rng = {"range": {"timestamp": {"gte": since.isoformat(), "lte": until.isoformat()}}}
+    resp = httpx.post(
+        f"{os_url.rstrip('/')}/otg-events-*/_count",
+        json={"query": rng},
+        params={"ignore_unavailable": "true"},
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+    return resp.json().get("count", 0)
 
 
 def load_events_file(path: str) -> list[dict]:
@@ -165,7 +187,7 @@ def render(context: dict[str, Any], template_name: str = DEFAULT_TEMPLATE) -> st
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate a weekly OTG threat report.")
     src = parser.add_mutually_exclusive_group(required=True)
-    src.add_argument("--api-url", help="Base URL of a running OTG API")
+    src.add_argument("--opensearch-url", help="Base URL of OpenSearch (queries otg-events-*)")
     src.add_argument("--from-file", help="Path to a JSON file of OTG events")
     parser.add_argument("--days", type=int, default=7, help="Window length in days")
     parser.add_argument("--output", default="-", help="Output path ('-' for stdout)")
@@ -175,10 +197,11 @@ def main() -> None:
     until = datetime.now(timezone.utc)
     since = until - timedelta(days=args.days)
 
-    if args.api_url:
-        events = fetch_events_api(args.api_url, since, until)
-        prior = fetch_events_api(args.api_url, since - timedelta(days=args.days), since)
-        prior_total = len(prior)
+    if args.opensearch_url:
+        events = fetch_events_opensearch(args.opensearch_url, since, until)
+        prior_total = count_events_opensearch(
+            args.opensearch_url, since - timedelta(days=args.days), since
+        )
     else:
         all_events = load_events_file(args.from_file)
         events = [e for e in all_events if _within(e, since, until)]

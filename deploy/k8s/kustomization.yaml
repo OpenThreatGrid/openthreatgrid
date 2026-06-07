@@ -17,13 +17,17 @@ resources:
   - opensearch-dashboards/service.yaml
   - opensearch-dashboards/dashboards-configmap.yaml
   - opensearch-dashboards/bootstrap-job.yaml
-  - redis/deployment.yaml
-  - redis/service.yaml
-  - api/configmap.yaml
-  - api/deployment.yaml
-  - api/service.yaml
-  - worker/deployment.yaml
+  # Ingestion pipeline (topology A): sensors → Filebeat → Logstash → OpenSearch.
+  - filebeat/configmap.yaml
+  - logstash/deployment.yaml
   - cowrie/deployment.yaml
   - cowrie/service.yaml
   - cowrie/networkpolicy.yaml
+  # Optional extra sensors. Uncomment to deploy — each needs its image on GHCR
+  # (built by docker-build.yml).
+  # - opencanary/configmap.yaml
+  # - opencanary/deployment.yaml
+  # - opencanary/service.yaml
+  # - http-trap/deployment.yaml
+  # - http-trap/service.yaml
   - reports/cronjob.yaml

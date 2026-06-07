@@ -27,7 +27,7 @@ spec:
             - name: report
               image: {{ include "otg.image" (dict "root" . "name" .Values.reports.image) }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
-              args: ["--api-url", "http://otg-api:8000", "--days", "7", "--output", "/reports/weekly-latest.md"]
+              args: ["--opensearch-url", "http://opensearch:9200", "--days", "7", "--output", "/reports/weekly-latest.md"]
               volumeMounts:
                 - name: reports
                   mountPath: /reports

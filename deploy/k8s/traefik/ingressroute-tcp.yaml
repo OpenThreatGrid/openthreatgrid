@@ -40,11 +40,6 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`api.openthreatgrid.io`)
-      kind: Rule
-      services:
-        - name: otg-api
-          port: 8000
     - match: Host(`dashboard.openthreatgrid.io`)
       kind: Rule
       services:

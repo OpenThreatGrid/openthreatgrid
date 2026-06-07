@@ -1,6 +1,6 @@
 # Weekly threat-intelligence report. Runs Mondays 06:00 UTC, writes Markdown to
-# a PVC. Labelled app=otg-reports so the API NetworkPolicy admits it; the
-# generator reaches the API only (it does not touch OpenSearch directly).
+# a PVC. Labelled app=otg-reports so the OpenSearch NetworkPolicy admits it; the
+# generator queries OpenSearch (otg-events-*) directly.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -28,8 +28,8 @@ spec:
               image: ghcr.io/openthreatgrid/otg-reports:main
               imagePullPolicy: Always
               args:
-                - "--api-url"
-                - "http://otg-api:8000"
+                - "--opensearch-url"
+                - "http://opensearch:9200"
                 - "--days"
                 - "7"
                 - "--output"
@@ -60,7 +60,7 @@ spec:
     requests:
       storage: 1Gi
 ---
-# Report generator: egress to the API only (it does not touch Postgres directly).
+# Report generator: egress to OpenSearch (read) + DNS only.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -76,10 +76,10 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app: otg-api
+              app: opensearch
       ports:
         - protocol: TCP
-          port: 8000
+          port: 9200
     - to:
         - namespaceSelector: {}
           podSelector:

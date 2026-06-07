@@ -5,11 +5,11 @@ Weekly threat-intelligence report generator. Renders a Markdown report (sections
 
 ## Usage
 
-Against a running API:
+Against OpenSearch (`otg-events-*`):
 
 ```bash
 pip install -r requirements.txt
-python generate_report.py --api-url http://localhost:8000 --days 7 \
+python generate_report.py --opensearch-url http://localhost:9200 --days 7 \
     --output output/weekly-$(date +%Y%m%d).md
 ```
 
@@ -30,4 +30,4 @@ python generate_report.py --from-file ../examples/sample-events/otg-events.json 
 ## In production
 
 Runs as a weekly Kubernetes CronJob (`deploy/k8s/reports/cronjob.yaml`) that
-calls the in-cluster API and writes the report to a PVC / object store.
+queries in-cluster OpenSearch and writes the report to a PVC / object store.

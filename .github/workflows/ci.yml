@@ -7,30 +7,12 @@ on:
     branches: [main]
 
 jobs:
-  backend:
-    name: otg-api (lint + test)
+  http-trap:
+    name: http-trap (lint + test)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend/otg-api
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - run: pip install -r requirements-dev.txt
-      - name: Ruff
-        run: ruff check .
-      - name: Pytest
-        run: pytest
-
-  worker:
-    name: otg-worker (lint + test)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: workers/otg-worker
+        working-directory: sensors/http-trap
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -44,7 +26,7 @@ jobs:
         run: pytest
 
   reports:
-    name: reports (render example)
+    name: reports (test + render)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -55,7 +37,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Pytest
+        run: pytest
       - name: Generate example report from sample events
         run: python generate_report.py --from-file ../examples/sample-events/otg-events.json --output /tmp/report.md
       - name: Report is non-empty

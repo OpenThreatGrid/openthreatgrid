@@ -54,19 +54,16 @@ Supported initial event types:
 - File download attempt
 - Session close
 
-## Phase 3: Ingestion API
+## Phase 3: Ingestion pipeline
 
-Goal: receive normalized events through an API.
+Goal: normalize + enrich sensor logs into OpenSearch (topology A).
 
 Deliverables:
 
-- FastAPI backend
-- `POST /api/v1/events`
-- `GET /api/v1/events`
-- `GET /api/v1/stats/summary`
+- Filebeat (sidecar) shipping sensor logs
+- Logstash pipeline (normalize + enrich + GeoIP)
 - OpenSearch index template (`otg-events-*`)
-- Dockerfile
-- Kubernetes deployment manifest
+- Logstash image (oss + opensearch output) + Kubernetes manifests
 
 ## Phase 4: Dashboard
 

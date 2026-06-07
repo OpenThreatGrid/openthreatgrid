@@ -19,12 +19,10 @@ Requires Docker + Docker Compose.
 # or: docker compose up --build
 ```
 
-This starts OpenSearch, OpenSearch Dashboards, Redis, the API, the worker
-(consumer), Cowrie, and the parser sidecar; installs the index template; imports
-the Threat Overview dashboard; and seeds sample data. Then:
+This starts OpenSearch + Dashboards, installs the index template, imports the
+Threat Overview dashboard, seeds sample data, then starts Logstash, Cowrie, and
+its Filebeat sidecar (Cowrie → Filebeat → Logstash → OpenSearch). Then:
 
-- API docs:   http://localhost:8000/docs
-- Stats:      http://localhost:8000/api/v1/stats/summary
 - Dashboards: http://localhost:5601 (Threat Overview)
 - OpenSearch: http://localhost:9200
 - Poke the honeypot: `ssh -p 2222 root@localhost`
@@ -34,16 +32,16 @@ Tear down: `docker compose down -v`.
 ### Run components without Docker
 
 ```bash
-# API
-cd backend/otg-api && pip install -r requirements-dev.txt && pytest
-uvicorn app.main:app --reload
-
-# Worker tests
-cd workers/otg-worker && pip install -r requirements-dev.txt && pytest
-
-# Example report from sample data
-cd reports && pip install -r requirements.txt
+# Reports (tests + example render)
+cd reports && pip install -r requirements-dev.txt && pytest
 python generate_report.py --from-file ../examples/sample-events/otg-events.json --output output/report.md
+
+# HTTP-trap sensor (tests)
+cd sensors/http-trap && pip install -r requirements-dev.txt && pytest
+
+# Validate the Logstash pipeline
+docker run --rm ghcr.io/openthreatgrid/otg-logstash:main \
+  logstash -t -f /usr/share/logstash/pipeline/otg.conf
 ```
 
 ---
@@ -60,13 +58,15 @@ kubectl apply -k deploy/k8s   # includes OpenSearch, Dashboards, and the saved-o
 kubectl apply -f deploy/k8s/traefik/ingressroute-tcp.yaml
 ```
 
-The API creates the `otg-events` index template on startup, and the
-`otg-dashboards-import` Job loads the Threat Overview dashboard once Dashboards
-is ready. Regenerate the saved objects after editing them with
+Run `./scripts/bootstrap_opensearch.sh` once to install the `otg-events` index
+template (Logstash uses `manage_template => false`) and import the dashboards;
+the `otg-dashboards-import` Job also loads them once Dashboards is ready.
+Regenerate saved objects after editing with
 `python opensearch/dashboards/build_saved_objects.py`.
 
 Build & push images first (or let `.github/workflows/docker-build.yml` do it):
-`otg-api`, `otg-worker`, `otg-reports`, `cowrie` → `ghcr.io/openthreatgrid/*`.
+`otg-logstash`, `otg-reports`, `cowrie`, `mmproxy`, `opencanary`, `http-trap`
+→ `ghcr.io/openthreatgrid/*`.
 
 ---
 
@@ -84,7 +84,36 @@ the Threat Overview dashboard.
 Toggle components with `--set <component>.enabled=false`. Values reference in
 [`deploy/helm/openthreatgrid/values.yaml`](../deploy/helm/openthreatgrid/values.yaml).
 Traefik + IngressRoutes are installed separately (step 2 above) so the chart
-stays cluster-agnostic.
+stays cluster-agnostic. Optional extra sensors: `--set opencanary.enabled=true`,
+`--set httpTrap.enabled=true`.
+
+---
+
+## Updates & automatic rollouts
+
+Images are built and pushed by [`docker-build.yml`](../.github/workflows/docker-build.yml)
+on every push to `main`, with both a mutable `:main` tag and an **immutable
+`sha-<commit>` tag**.
+
+A mutable tag is a deploy trap: rebuilding `:main` does **not** change the
+Deployment spec, so Fleet/Helm never roll the pods (`imagePullPolicy: Always`
+only pulls when a pod is *created*). To get automatic rollouts, the `pin-deploy-tag`
+CI job pins `fleet.yaml`'s `image.tag` to the new `sha-<commit>` after the build
+and commits it (`[skip ci]`; the `GITHUB_TOKEN` push doesn't re-trigger CI). Fleet
+then sees a changed spec and rolls **every** component.
+
+Pin or revert manually with:
+
+```bash
+./scripts/bump_image_tag.sh sha-1a2b3c4   # pin to a specific build
+./scripts/bump_image_tag.sh main          # back to the mutable tag
+```
+
+Force an immediate rollout of one component without a new image:
+
+```bash
+kubectl -n openthreatgrid rollout restart deploy/logstash
+```
 
 ---
 
@@ -103,10 +132,10 @@ Order (matches the development plan's deployment order):
  8. [DC-A]    Helm install Traefik (TCP + Proxy Protocol)
  9. [DO VPS]  ./deploy/edge/setup-edge.sh   (HAProxy + UFW + hardening)
 10. [DO VPS]  Verify edge → Traefik reachability
-11. [DC-A]    Deploy OpenSearch, Redis, API, Cowrie+parser, worker
-12. [DC-A]    Verify end-to-end: attacker IP visible in otg-events-* (GET /api/v1/events)
+11. [DC-A]    Deploy OpenSearch, Logstash, Cowrie (+ Filebeat sidecar)
+12. [DC-A]    Verify end-to-end: attacker IP visible in otg-events-* (_search)
 13. [DC-A]    Deploy OpenSearch Dashboards; apply IngressRoutes
-14. [CF]      Configure Cloudflare DNS (dashboard + API only)
+14. [CF]      Configure Cloudflare DNS (dashboard only)
 15. [ALL]     Apply NetworkPolicies; UFW lockdown; verify Cowrie has no egress
 ```
 

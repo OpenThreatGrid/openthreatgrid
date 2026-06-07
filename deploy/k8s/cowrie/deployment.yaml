@@ -18,13 +18,12 @@ spec:
     spec:
       securityContext:
         # cowrie writes the JSON log to the shared emptyDir as uid 999; fsGroup
-        # makes the volume group-writable and lets the parser (uid 10001) read it.
+        # makes the volume group-readable so the Filebeat sidecar can tail it.
         fsGroup: 999
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        # Set up the loopback routing table so go-mmproxy's transparent replies
-        # from Cowrie are routed back through mmproxy (runs once in the pod netns).
+        # Loopback routing so go-mmproxy's transparent replies route back through it.
         - name: setup-routing
           image: ghcr.io/openthreatgrid/mmproxy:main
           imagePullPolicy: Always
@@ -44,32 +43,23 @@ spec:
           image: ghcr.io/openthreatgrid/cowrie:main
           imagePullPolicy: Always
           resources:
-            requests:
-              cpu: "500m"
-              memory: 256Mi
-            limits:
-              cpu: "1000m"
-              memory: 512Mi
+            requests: { cpu: "500m", memory: 256Mi }
+            limits:   { cpu: "1000m", memory: 512Mi }
           securityContext:
             runAsNonRoot: true
-            runAsUser: 999   # the cowrie user inside the image owns var/lib/cowrie
+            runAsUser: 999
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
           volumeMounts:
-            - name: cowrie-logs
-              mountPath: /cowrie/var/log/cowrie
-            - name: cowrie-config
-              mountPath: /cowrie/cowrie-git/etc/cowrie.cfg
-              subPath: cowrie.cfg
+            - { name: cowrie-logs, mountPath: /cowrie/var/log/cowrie }
+            - { name: cowrie-config, mountPath: /cowrie/cowrie-git/etc/cowrie.cfg, subPath: cowrie.cfg }
         # ── mmproxy: SSH (restores real client IP) ────────────────────
         - name: mmproxy-ssh
           image: ghcr.io/openthreatgrid/mmproxy:main
           imagePullPolicy: Always
           args: ["-l", "0.0.0.0:2222", "-4", "127.0.0.1:12222", "-p", "tcp"]
-          ports:
-            - containerPort: 2222
-              name: ssh
+          ports: [{ containerPort: 2222, name: ssh }]
           resources:
             requests: { cpu: "50m", memory: 32Mi }
             limits: { cpu: "200m", memory: 64Mi }
@@ -85,9 +75,7 @@ spec:
           image: ghcr.io/openthreatgrid/mmproxy:main
           imagePullPolicy: Always
           args: ["-l", "0.0.0.0:2223", "-4", "127.0.0.1:12223", "-p", "tcp"]
-          ports:
-            - containerPort: 2223
-              name: telnet
+          ports: [{ containerPort: 2223, name: telnet }]
           resources:
             requests: { cpu: "50m", memory: 32Mi }
             limits: { cpu: "200m", memory: 64Mi }
@@ -98,35 +86,36 @@ spec:
             capabilities:
               drop: ["ALL"]
               add: ["NET_ADMIN"]
-        # ── Parser sidecar: tails the log, pushes to Redis ────────────
-        - name: parser
-          image: ghcr.io/openthreatgrid/otg-worker:main
-          imagePullPolicy: Always
-          args: ["parser"]
+        # ── Filebeat sidecar: ships cowrie.json to Logstash ───────────
+        - name: filebeat
+          image: docker.elastic.co/beats/filebeat-oss:7.12.1
+          args: ["-e", "--strict.perms=false"]
           env:
-            - name: REDIS_URL
-              value: "redis://redis:6379/0"
-            - name: COWRIE_LOG_PATH
-              value: "/cowrie/var/log/cowrie/cowrie.json"
-            - name: SENSOR_ID
-              value: "cowrie-prod-01"
+            - { name: LOG_TYPE, value: "cowrie" }
+            - { name: LOG_PATH, value: "/cowrie/var/log/cowrie/cowrie.json" }
+            - { name: SENSOR_ID, value: "cowrie-prod-01" }
+            - { name: LOGSTASH_HOST, value: "logstash:5044" }
           resources:
-            requests: { cpu: "100m", memory: 128Mi }
-            limits: { cpu: "250m", memory: 256Mi }
+            requests: { cpu: "50m", memory: 64Mi }
+            limits: { cpu: "200m", memory: 128Mi }
           securityContext:
             runAsNonRoot: true
-            runAsUser: 10001
+            runAsUser: 1000
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           volumeMounts:
-            - name: cowrie-logs
-              mountPath: /cowrie/var/log/cowrie
-              readOnly: true
+            - { name: cowrie-logs, mountPath: /cowrie/var/log/cowrie, readOnly: true }
+            - { name: filebeat-config, mountPath: /usr/share/filebeat/filebeat.yml, subPath: filebeat.yml, readOnly: true }
+            - { name: filebeat-data, mountPath: /usr/share/filebeat/data }
       volumes:
         - name: cowrie-logs
           emptyDir: {}
         - name: cowrie-config
           configMap:
             name: cowrie-config
+        - name: filebeat-config
+          configMap:
+            name: filebeat-config
+        - name: filebeat-data
+          emptyDir: {}

@@ -52,11 +52,13 @@ nav:
   - Home: index.md
   - Architecture: architecture.md
   - Event Schema: event-schema.md
-  - API Reference: api.md
+  - Sensor Integration: sensor-integration.md
   - Deployment:
       - Guide: deployment-guide.md
       - Kubernetes: deployment-kubernetes.md
       - Infrastructure: infrastructure.md
+      - Filebeat + Logstash (topology A): filebeat-logstash.md
+  - Deception Features: deception-features.md
   - Operations:
       - Safe Honeypot Operation: safe-honeypot-operation.md
       - Data Policy: data-policy.md

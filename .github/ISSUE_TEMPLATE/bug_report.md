@@ -12,11 +12,11 @@ A clear, concise description of the bug.
 
 ## Component
 
-- [ ] otg-api
-- [ ] otg-worker (parser / consumer)
+- [ ] sensors (cowrie / opencanary / http-trap)
+- [ ] ingestion (filebeat / logstash)
+- [ ] opensearch / dashboards
 - [ ] reports
 - [ ] deploy (k8s / helm / edge)
-- [ ] dashboard (Grafana)
 - [ ] docs
 
 ## Steps to reproduce

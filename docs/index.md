@@ -13,13 +13,11 @@ attack activity in OpenSearch Dashboards, and generates weekly threat reports.
 
 ```mermaid
 flowchart TD
-    A[Honeypot Sensors<br/>Cowrie] --> B[Parser / Log Shipper]
-    B --> Q[(Redis queue)]
-    Q --> C[Consumer<br/>enrich + GeoIP/ASN]
-    C --> D[OpenThreatGrid API<br/>FastAPI]
-    D --> E[(OpenSearch<br/>otg-events-*)]
-    E --> F[OpenSearch Dashboards]
-    E --> G[Weekly Report Generator]
+    A[Honeypot Sensors<br/>Cowrie · OpenCanary · HTTP trap] --> B[Filebeat sidecar]
+    B --> C[Logstash<br/>normalize + enrich + GeoIP]
+    C --> D[(OpenSearch<br/>otg-events-*)]
+    D --> E[OpenSearch Dashboards]
+    D --> F[Weekly Report Generator]
 ```
 
 ## Quick start (local)
@@ -27,12 +25,12 @@ flowchart TD
 ```bash
 git clone https://github.com/OpenThreatGrid/openthreatgrid
 cd openthreatgrid
-./scripts/run_local.sh          # or: docker compose up --build
+./scripts/run_local.sh
 ```
 
-- API docs: <http://localhost:8000/docs>
 - Dashboards: <http://localhost:5601> (Threat Overview)
 - OpenSearch: <http://localhost:9200>
+- Honeypot: `ssh -p 2222 root@localhost`
 
 ## Where to next
 

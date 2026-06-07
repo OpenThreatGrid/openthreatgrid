@@ -9,26 +9,21 @@ image:
   pullPolicy: Always
   tag: main
 
-# ─── API ───────────────────────────────────────────────────────────────
-api:
-  enabled: true
-  replicas: 2
-  image: otg-api
-  resources:
-    requests: { cpu: 250m, memory: 256Mi }
-    limits:   { cpu: 500m, memory: 512Mi }
+# ─── Ingestion: Filebeat (sidecar) → Logstash → OpenSearch (topology A) ──
+# Filebeat ships each sensor's log; one Logstash normalizes + enriches + writes
+# to otg-events-*. Filebeat runs as a sidecar in every sensor pod.
+filebeat:
+  image: docker.elastic.co/beats/filebeat-oss:7.12.1
 
-# ─── Worker (consumer) ─────────────────────────────────────────────────
-worker:
+logstash:
   enabled: true
-  replicas: 1
-  image: otg-worker
-  batchSize: 50
+  image: otg-logstash   # built from deploy/filebeat-logstash/logstash
+  javaOpts: "-Xms512m -Xmx512m"
   resources:
-    requests: { cpu: 250m, memory: 256Mi }
-    limits:   { cpu: 500m, memory: 512Mi }
+    requests: { cpu: 500m, memory: 1Gi }
+    limits:   { cpu: 1500m, memory: 1536Mi }
 
-# ─── Cowrie sensor + parser sidecar ────────────────────────────────────
+# ─── Cowrie sensor + Filebeat sidecar ──────────────────────────────────
 cowrie:
   enabled: true
   image: cowrie
@@ -37,10 +32,23 @@ cowrie:
     requests: { cpu: 500m, memory: 256Mi }
     limits:   { cpu: 1000m, memory: 512Mi }
 
-# ─── Redis (in-cluster queue) ──────────────────────────────────────────
-redis:
-  enabled: true
-  image: redis:7-alpine
+# ─── OpenCanary sensor (optional second sensor) ────────────────────────
+opencanary:
+  enabled: false
+  image: opencanary
+  sensorId: opencanary-prod-01
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+# ─── HTTP trap (optional deception web honeypot) ───────────────────────
+httpTrap:
+  enabled: false
+  image: http-trap
+  sensorId: http-trap-prod-01
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
 
 # ─── OpenSearch (primary event store) ──────────────────────────────────
 opensearch:

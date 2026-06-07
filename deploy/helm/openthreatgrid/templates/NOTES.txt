@@ -2,20 +2,21 @@ OpenThreatGrid {{ .Chart.AppVersion }} installed as release "{{ .Release.Name }}
 in namespace "{{ .Release.Namespace }}".
 
 Components enabled:
-  API        : {{ .Values.api.enabled }}
-  Worker     : {{ .Values.worker.enabled }}
   Cowrie     : {{ .Values.cowrie.enabled }}
-  Redis      : {{ .Values.redis.enabled }}
+  OpenCanary : {{ .Values.opencanary.enabled }}
+  HTTP trap  : {{ .Values.httpTrap.enabled }}
+  Logstash   : {{ .Values.logstash.enabled }}
   OpenSearch : {{ .Values.opensearch.enabled }}
   Dashboards : {{ .Values.dashboards.enabled }}
   Reports    : {{ .Values.reports.enabled }}
 
+Ingestion: sensors → Filebeat (sidecar) → Logstash → OpenSearch (otg-events-*).
+
 Next steps:
   1. Install Traefik with the TCP entrypoints (deploy/k8s/traefik/values.yaml)
      and apply deploy/k8s/traefik/ingressroute-tcp.yaml.
-  2. Port-forward the API to verify:
-       kubectl -n {{ .Release.Namespace }} port-forward svc/otg-api 8000:8000
-       curl localhost:8000/health
+  2. Ensure the OTG index template exists (scripts/bootstrap_opensearch.sh) so
+     Logstash writes correct mappings.
   3. Open OpenSearch Dashboards (Threat Overview imported automatically):
        kubectl -n {{ .Release.Namespace }} port-forward svc/opensearch-dashboards 5601:5601
 

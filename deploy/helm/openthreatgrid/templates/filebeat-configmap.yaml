@@ -1,0 +1,28 @@
+{{- if .Values.logstash.enabled }}
+# Shared Filebeat config for every sensor pod; per-pod env (LOG_PATH / LOG_TYPE /
+# SENSOR_ID) selects what it tails and how Logstash routes it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-config
+  labels:
+    {{- include "otg.labels" . | nindent 4 }}
+data:
+  filebeat.yml: |
+    filebeat.inputs:
+      - type: log
+        enabled: true
+        paths:
+          - "${LOG_PATH:/cowrie/var/log/cowrie/cowrie.json}"
+        fields_under_root: true
+        fields:
+          log_type: "${LOG_TYPE:cowrie}"
+          sensor_id: "${SENSOR_ID:cowrie-prod-01}"
+        close_renamed: true
+        close_removed: true
+        clean_removed: true
+    output.logstash:
+      hosts: ["${LOGSTASH_HOST:logstash:5044}"]
+    logging.to_stderr: true
+    monitoring.enabled: false
+{{- end }}

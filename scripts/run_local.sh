@@ -1,41 +1,43 @@
 #!/usr/bin/env bash
-# Bring up the full OpenThreatGrid pipeline locally with Docker Compose,
-# wait for the API, seed sample data, and print the useful URLs.
+# Bring up the OpenThreatGrid pipeline locally (topology A) with Docker Compose:
+# Cowrie → Filebeat → Logstash → OpenSearch → Dashboards. Installs the index
+# template, imports dashboards, seeds sample data, and prints the URLs.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-API_URL="${API_URL:-http://localhost:8000}"
+OPENSEARCH_URL="${OPENSEARCH_URL:-http://localhost:9200}"
 
-echo "==> Building and starting the stack..."
-docker compose up -d --build
+echo "==> Starting OpenSearch + Dashboards first..."
+docker compose up -d opensearch opensearch-dashboards
 
-echo "==> Waiting for the API to become ready..."
+echo "==> Waiting for OpenSearch to become healthy..."
 for _ in $(seq 1 60); do
-  if curl -fsS "${API_URL}/health" >/dev/null 2>&1; then
-    echo "    API is up."
+  if curl -fsS "${OPENSEARCH_URL}/_cluster/health" >/dev/null 2>&1; then
+    echo "    OpenSearch is up."
     break
   fi
   sleep 2
 done
 
-echo "==> Installing OpenSearch index template + dashboards..."
+echo "==> Installing index template + dashboards (must precede first events)..."
 ./scripts/bootstrap_opensearch.sh || \
-  echo "    (bootstrap skipped — OpenSearch/Dashboards may still be starting; re-run later)"
+  echo "    (bootstrap partial — Dashboards may still be starting; re-run later)"
 
-echo "==> Seeding sample data..."
-python3 scripts/seed_sample_data.py --api-url "${API_URL}" || \
+echo "==> Seeding sample data into OpenSearch..."
+python3 scripts/seed_sample_data.py --opensearch-url "${OPENSEARCH_URL}" || \
   echo "    (seed skipped — is python3 available?)"
+
+echo "==> Building and starting the ingestion stack (Logstash, Cowrie, Filebeat)..."
+docker compose up -d --build
 
 cat <<EOF
 
-OpenThreatGrid is running:
+OpenThreatGrid is running (topology A):
 
-  API docs    : ${API_URL}/docs
-  API health  : ${API_URL}/health
-  Stats       : ${API_URL}/api/v1/stats/summary
   Dashboards  : http://localhost:5601  (Threat Overview)
-  OpenSearch  : http://localhost:9200
+  OpenSearch  : ${OPENSEARCH_URL}
+  Honeypot    : ssh -p 2222 root@localhost
 
 Tail logs with:   docker compose logs -f
 Tear down with:   docker compose down -v

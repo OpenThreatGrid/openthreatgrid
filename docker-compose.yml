@@ -1,10 +1,12 @@
-# OpenThreatGrid — full local development pipeline.
+# OpenThreatGrid — local development pipeline (topology A).
 #
-#   Cowrie ──► parser ──► Redis ──► consumer ──► API ──► OpenSearch ──► Dashboards
+#   Cowrie ──► Filebeat ──► Logstash ──► OpenSearch ──► OpenSearch Dashboards
 #
-# Quick start:  ./scripts/run_local.sh   (or: docker compose up --build)
-# After the stack is healthy, load the index template + dashboards:
-#   ./scripts/bootstrap_opensearch.sh
+# Quick start:  ./scripts/run_local.sh   (or the steps below)
+#   1. docker compose up -d opensearch opensearch-dashboards   # wait healthy
+#   2. ./scripts/bootstrap_opensearch.sh                       # template + dashboards
+#   3. docker compose up -d --build                            # rest of the stack
+#   4. ssh -p 2222 root@localhost                              # attack the honeypot
 
 services:
   opensearch:
@@ -13,13 +15,9 @@ services:
       - discovery.type=single-node
       - bootstrap.memory_lock=true
       - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
-      # Local dev only: disable the security plugin so no TLS/auth is required.
-      # NEVER do this on an internet-exposed cluster.
       - DISABLE_SECURITY_PLUGIN=true
     ulimits:
-      memlock:
-        soft: -1
-        hard: -1
+      memlock: { soft: -1, hard: -1 }
     ports:
       - "9200:9200"
     volumes:
@@ -41,60 +39,39 @@ services:
       opensearch:
         condition: service_healthy
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  api:
-    build: ./backend/otg-api
+  logstash:
+    build: ./deploy/filebeat-logstash/logstash
+    volumes:
+      - ./deploy/filebeat-logstash/logstash/pipeline:/usr/share/logstash/pipeline:ro
     environment:
-      OPENSEARCH_URL: http://opensearch:9200
-      REDIS_URL: redis://redis:6379/0
-      ENVIRONMENT: development
-    ports:
-      - "8000:8000"
+      - LS_JAVA_OPTS=-Xms512m -Xmx512m
     depends_on:
       opensearch:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  consumer:
-    build: ./workers/otg-worker
-    command: ["consumer"]
-    environment:
-      REDIS_URL: redis://redis:6379/0
-      OTG_API_URL: http://api:8000
-    depends_on:
-      - api
-      - redis
 
   cowrie:
     image: cowrie/cowrie:latest
-    # Expose the honeypot locally so you can poke it: ssh -p 2222 root@localhost
+    # Poke the honeypot:  ssh -p 2222 root@localhost
     ports:
       - "2222:2222"
       - "2223:2223"
     volumes:
       - cowrie-logs:/cowrie/var/log/cowrie
 
-  parser:
-    build: ./workers/otg-worker
-    command: ["parser"]
+  filebeat:
+    image: docker.elastic.co/beats/filebeat-oss:7.12.1
+    user: root
+    command: ["filebeat", "-e", "--strict.perms=false"]
     environment:
-      REDIS_URL: redis://redis:6379/0
-      COWRIE_LOG_PATH: /cowrie/var/log/cowrie/cowrie.json
-      SENSOR_ID: cowrie-local-01
+      - LOG_TYPE=cowrie
+      - LOG_PATH=/cowrie/var/log/cowrie/cowrie.json
+      - SENSOR_ID=cowrie-local-01
+      - LOGSTASH_HOST=logstash:5044
     volumes:
+      - ./deploy/filebeat-logstash/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
       - cowrie-logs:/cowrie/var/log/cowrie:ro
     depends_on:
-      - redis
+      - logstash
       - cowrie
 
 volumes:

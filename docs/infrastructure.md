@@ -19,8 +19,8 @@ cheap DigitalOcean VPS at the edge and an existing on-premise Kubernetes cluster
    ┌─────────────────────────────────────────────┐
    │  DC-A  K8s WORKER (32 CPU · 32 GB)            │
    │  Traefik (Proxy Protocol termination)        │
-   │   └► Cowrie ─► parser ─► Redis ─► consumer    │
-   │                                  └► API ─► OpenSearch ─► Dashboards / Reports
+   │   └► Cowrie ─► Filebeat ─► Logstash           │
+   │                              └► OpenSearch ─► Dashboards / Reports
    └───────────────────────┬─────────────────────┘
                            │ WireGuard (<30ms)
                            ▼
@@ -80,7 +80,7 @@ Cloudflare in front. Only the dashboard and API hostnames are proxied.
 | Tier | Components | CPU req | RAM req |
 |---|---|---|---|
 | Edge VPS | HAProxy + Tailscale + OS | ~200m | ~328 MB (of 1 GB) |
-| K8s worker | Traefik, Cowrie, API×2, OpenSearch, Dashboards, Redis, worker | ~3.5 cores | ~4.5 Gi (of 32) |
+| K8s worker | Traefik, Cowrie (+Filebeat), Logstash, OpenSearch, Dashboards | ~3.5 cores | ~5 Gi (of 32) |
 
 Plenty of headroom on the worker for additional sensors post-MVP.
 

@@ -20,15 +20,10 @@ helm:
     image:
       registry: ghcr.io/openthreatgrid
       tag: main
-    api:
-      enabled: true
-      replicas: 2
-    worker:
-      enabled: true
     cowrie:
       enabled: true
       sensorId: cowrie-prod-01
-    redis:
+    logstash:
       enabled: true
     opensearch:
       enabled: true

@@ -20,16 +20,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - image: otg-api
-            context: backend/otg-api
-          - image: otg-worker
-            context: workers/otg-worker
           - image: otg-reports
             context: reports
           - image: cowrie
             context: sensors/cowrie
           - image: mmproxy
             context: sensors/mmproxy
+          - image: opencanary
+            context: sensors/opencanary
+          - image: http-trap
+            context: sensors/http-trap
+          - image: otg-logstash
+            context: deploy/filebeat-logstash/logstash
     steps:
       - uses: actions/checkout@v4
 
@@ -65,3 +67,33 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Pin the deploy to the immutable per-commit image tag (sha-<short>) so Fleet
+  # sees a changed spec and rolls every component — fixing the "mutable :main tag
+  # never triggers a rollout" problem. The GITHUB_TOKEN push does not re-trigger
+  # this workflow (and carries [skip ci]), so there is no build loop.
+  pin-deploy-tag:
+    name: pin deploy image tag
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: pin-deploy-tag
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update fleet.yaml image tag
+        run: ./scripts/bump_image_tag.sh "sha-$(git rev-parse --short=7 HEAD)"
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- fleet.yaml; then
+            echo "fleet.yaml already pinned; nothing to do."
+            exit 0
+          fi
+          git config user.name "otg-ci[bot]"
+          git config user.email "otg-ci@users.noreply.github.com"
+          git add fleet.yaml
+          git commit -m "ci: pin deploy image tag to sha-$(git rev-parse --short=7 HEAD) [skip ci]"
+          git push

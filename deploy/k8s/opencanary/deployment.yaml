@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencanary
+  namespace: openthreatgrid
+  labels:
+    app: opencanary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opencanary
+  template:
+    metadata:
+      labels:
+        app: opencanary
+        otg-role: sensor
+    spec:
+      securityContext:
+        # opencanary (uid 10002) writes the log to the shared emptyDir; fsGroup
+        # makes it group-readable so the parser (uid 10001) can tail it.
+        fsGroup: 10002
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        # ── Deception sensor ──────────────────────────────────────────
+        - name: opencanary
+          image: ghcr.io/openthreatgrid/opencanary:main
+          imagePullPolicy: Always
+          ports:
+            - { containerPort: 2121, name: ftp }
+            - { containerPort: 2222, name: ssh }
+            - { containerPort: 2323, name: telnet }
+            - { containerPort: 8080, name: http }
+          resources:
+            requests: { cpu: "100m", memory: 128Mi }
+            limits: { cpu: "500m", memory: 256Mi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10002
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: oc-logs
+              mountPath: /var/log/opencanary
+            - name: oc-config
+              mountPath: /home/canary/.opencanary.conf
+              subPath: opencanary.conf
+        # ── Filebeat sidecar: ships the log to Logstash ───────────────
+        - name: filebeat
+          image: docker.elastic.co/beats/filebeat-oss:7.12.1
+          args: ["-e", "--strict.perms=false"]
+          env:
+            - { name: LOG_TYPE, value: "opencanary" }
+            - { name: LOG_PATH, value: "/var/log/opencanary/opencanary.log" }
+            - { name: SENSOR_ID, value: "opencanary-prod-01" }
+            - { name: LOGSTASH_HOST, value: "logstash:5044" }
+          resources:
+            requests: { cpu: "50m", memory: 64Mi }
+            limits: { cpu: "200m", memory: 128Mi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: oc-logs, mountPath: /var/log/opencanary, readOnly: true }
+            - { name: filebeat-config, mountPath: /usr/share/filebeat/filebeat.yml, subPath: filebeat.yml, readOnly: true }
+            - { name: filebeat-data, mountPath: /usr/share/filebeat/data }
+      volumes:
+        - name: oc-logs
+          emptyDir: {}
+        - name: oc-config
+          configMap:
+            name: opencanary-config
+        - name: filebeat-config
+          configMap:
+            name: filebeat-config
+        - name: filebeat-data
+          emptyDir: {}

@@ -36,9 +36,8 @@ kubectl create namespace otg-system
 ## Planned Services
 
 ```text
-otg-cowrie-sensor
-otg-api
-otg-worker
+cowrie (+ Filebeat sidecar)
+logstash
 opensearch
 opensearch-dashboards
 ```

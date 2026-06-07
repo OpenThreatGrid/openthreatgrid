@@ -1,0 +1,54 @@
+{{- if .Values.logstash.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash
+  labels:
+    app: logstash
+    {{- include "otg.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logstash
+  template:
+    metadata:
+      labels:
+        app: logstash
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: logstash
+          image: {{ include "otg.image" (dict "root" . "name" .Values.logstash.image) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { containerPort: 5044, name: beats }
+          env:
+            - { name: LS_JAVA_OPTS, value: {{ .Values.logstash.javaOpts | quote }} }
+            - { name: XPACK_MONITORING_ENABLED, value: "false" }
+          resources:
+            {{- toYaml .Values.logstash.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            tcpSocket: { port: 5044 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  labels:
+    app: logstash
+spec:
+  selector:
+    app: logstash
+  ports:
+    - { port: 5044, targetPort: 5044, name: beats }
+{{- end }}

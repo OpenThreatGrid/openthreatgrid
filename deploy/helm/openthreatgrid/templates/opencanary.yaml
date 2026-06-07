@@ -1,0 +1,123 @@
+{{- if .Values.opencanary.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opencanary-config
+  labels:
+    {{- include "otg.labels" . | nindent 4 }}
+data:
+  opencanary.conf: |
+    {
+      "device.node_id": {{ .Values.opencanary.sensorId | quote }},
+      "ip.ignorelist": [], "logtype.ignorelist": [],
+      "ftp.enabled": true, "ftp.port": 2121, "ftp.banner": "FTP server ready",
+      "http.enabled": true, "http.port": 8080, "http.banner": "Apache/2.2.22 (Ubuntu)", "http.skin": "nasLogin",
+      "ssh.enabled": true, "ssh.port": 2222, "ssh.version": "SSH-2.0-OpenSSH_5.1p1 Debian-4",
+      "telnet.enabled": true, "telnet.port": 2323, "telnet.banner": "",
+      "smb.enabled": false, "mysql.enabled": false, "mssql.enabled": false,
+      "vnc.enabled": false, "portscan.enabled": false,
+      "logger": {"class": "PyLogger", "kwargs": {
+        "formatters": {"plain": {"format": "%(message)s"}},
+        "handlers": {"file": {"class": "logging.FileHandler", "formatter": "plain",
+          "filename": "/var/log/opencanary/opencanary.log"}}}}
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencanary
+  labels:
+    app: opencanary
+    {{- include "otg.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opencanary
+  template:
+    metadata:
+      labels:
+        app: opencanary
+        otg-role: sensor
+    spec:
+      securityContext:
+        fsGroup: 10002
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: opencanary
+          image: {{ include "otg.image" (dict "root" . "name" .Values.opencanary.image) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { containerPort: 2121, name: ftp }
+            - { containerPort: 2222, name: ssh }
+            - { containerPort: 2323, name: telnet }
+            - { containerPort: 8080, name: http }
+          resources:
+            {{- toYaml .Values.opencanary.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10002
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: oc-logs, mountPath: /var/log/opencanary }
+            - { name: oc-config, mountPath: /home/canary/.opencanary.conf, subPath: opencanary.conf }
+        {{- include "otg.filebeatSidecar" (dict "root" . "logType" "opencanary" "logPath" "/var/log/opencanary/opencanary.log" "sensorId" .Values.opencanary.sensorId "logVolume" "oc-logs" "logMount" "/var/log/opencanary") | nindent 8 }}
+      volumes:
+        - name: oc-logs
+          emptyDir: {}
+        - name: oc-config
+          configMap:
+            name: opencanary-config
+        {{- include "otg.filebeatVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opencanary
+  labels:
+    app: opencanary
+spec:
+  selector:
+    app: opencanary
+  ports:
+    - { port: 2121, targetPort: 2121, name: ftp }
+    - { port: 2222, targetPort: 2222, name: ssh }
+    - { port: 2323, targetPort: 2323, name: telnet }
+    - { port: 8080, targetPort: 8080, name: http }
+{{- if .Values.networkPolicies.enabled }}
+---
+# CRITICAL: no outbound internet — only the parser reaches Redis, plus DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: opencanary-isolation
+spec:
+  podSelector:
+    matchLabels:
+      app: opencanary
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { app.kubernetes.io/name: traefik } }
+      ports:
+        - { protocol: TCP, port: 2121 }
+        - { protocol: TCP, port: 2222 }
+        - { protocol: TCP, port: 2323 }
+        - { protocol: TCP, port: 8080 }
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app: logstash } }
+      ports:
+        - { protocol: TCP, port: 5044 }
+    - to:
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { k8s-app: kube-dns } }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+{{- end }}
+{{- end }}

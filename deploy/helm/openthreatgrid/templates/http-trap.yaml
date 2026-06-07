@@ -1,0 +1,94 @@
+{{- if .Values.httpTrap.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: http-trap
+  labels:
+    app: http-trap
+    {{- include "otg.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: http-trap
+  template:
+    metadata:
+      labels:
+        app: http-trap
+        otg-role: sensor
+    spec:
+      securityContext:
+        fsGroup: 10003
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: http-trap
+          image: {{ include "otg.image" (dict "root" . "name" .Values.httpTrap.image) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { containerPort: 8080, name: http }
+          env:
+            - { name: HTTP_TRAP_LOG_PATH, value: "/var/log/http-trap/http-trap.log" }
+            - { name: SENSOR_ID, value: {{ .Values.httpTrap.sensorId | quote }} }
+          resources:
+            {{- toYaml .Values.httpTrap.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10003
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          volumeMounts:
+            - { name: trap-logs, mountPath: /var/log/http-trap }
+        {{- include "otg.filebeatSidecar" (dict "root" . "logType" "http-trap" "logPath" "/var/log/http-trap/http-trap.log" "sensorId" .Values.httpTrap.sensorId "logVolume" "trap-logs" "logMount" "/var/log/http-trap") | nindent 8 }}
+      volumes:
+        - name: trap-logs
+          emptyDir: {}
+        {{- include "otg.filebeatVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: http-trap
+  labels:
+    app: http-trap
+spec:
+  selector:
+    app: http-trap
+  ports:
+    - { port: 8080, targetPort: 8080, name: http }
+{{- if .Values.networkPolicies.enabled }}
+---
+# CRITICAL: no outbound internet — only the parser reaches Redis, plus DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: http-trap-isolation
+spec:
+  podSelector:
+    matchLabels:
+      app: http-trap
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { app.kubernetes.io/name: traefik } }
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app: logstash } }
+      ports:
+        - { protocol: TCP, port: 5044 }
+    - to:
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { k8s-app: kube-dns } }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+{{- end }}
+{{- end }}

@@ -1,6 +1,6 @@
 # CRITICAL ISOLATION POLICY
 # Cowrie must never be usable as a relay. Ingress only from Traefik; egress
-# only to Redis (for the parser sidecar) and DNS. NO outbound internet.
+# only to Logstash (for the Filebeat sidecar) and DNS. NO outbound internet.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -29,14 +29,14 @@ spec:
         - protocol: TCP
           port: 2223
   egress:
-    # Parser sidecar -> Redis only.
+    # Filebeat sidecar -> Logstash only.
     - to:
         - podSelector:
             matchLabels:
-              app: redis
+              app: logstash
       ports:
         - protocol: TCP
-          port: 6379
+          port: 5044
     # DNS resolution.
     - to:
         - namespaceSelector: {}

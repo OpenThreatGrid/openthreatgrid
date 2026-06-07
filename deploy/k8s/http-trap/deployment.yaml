@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: http-trap
+  namespace: openthreatgrid
+  labels:
+    app: http-trap
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: http-trap
+  template:
+    metadata:
+      labels:
+        app: http-trap
+        otg-role: sensor
+    spec:
+      securityContext:
+        # trap (uid 10003) writes the log to the shared emptyDir; fsGroup makes
+        # it group-readable so the parser (uid 10001) can tail it.
+        fsGroup: 10003
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        # ── Deception web honeypot ────────────────────────────────────
+        - name: http-trap
+          image: ghcr.io/openthreatgrid/http-trap:main
+          imagePullPolicy: Always
+          ports:
+            - { containerPort: 8080, name: http }
+          env:
+            - { name: HTTP_TRAP_LOG_PATH, value: "/var/log/http-trap/http-trap.log" }
+            - { name: SENSOR_ID, value: "http-trap-prod-01" }
+          resources:
+            requests: { cpu: "100m", memory: 128Mi }
+            limits: { cpu: "500m", memory: 256Mi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10003
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          volumeMounts:
+            - { name: trap-logs, mountPath: /var/log/http-trap }
+        # ── Filebeat sidecar: ships the log to Logstash ───────────────
+        - name: filebeat
+          image: docker.elastic.co/beats/filebeat-oss:7.12.1
+          args: ["-e", "--strict.perms=false"]
+          env:
+            - { name: LOG_TYPE, value: "http-trap" }
+            - { name: LOG_PATH, value: "/var/log/http-trap/http-trap.log" }
+            - { name: SENSOR_ID, value: "http-trap-prod-01" }
+            - { name: LOGSTASH_HOST, value: "logstash:5044" }
+          resources:
+            requests: { cpu: "50m", memory: 64Mi }
+            limits: { cpu: "200m", memory: 128Mi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: trap-logs, mountPath: /var/log/http-trap, readOnly: true }
+            - { name: filebeat-config, mountPath: /usr/share/filebeat/filebeat.yml, subPath: filebeat.yml, readOnly: true }
+            - { name: filebeat-data, mountPath: /usr/share/filebeat/data }
+      volumes:
+        - name: trap-logs
+          emptyDir: {}
+        - name: filebeat-config
+          configMap:
+            name: filebeat-config
+        - name: filebeat-data
+          emptyDir: {}

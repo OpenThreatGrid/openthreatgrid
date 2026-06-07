@@ -1,0 +1,25 @@
+# OpenThreatGrid — Filebeat (7.12.1-oss), generic across sensors.
+#
+# One config for every sensor; LOG_PATH / LOG_TYPE / SENSOR_ID select what it
+# tails and how Logstash routes it. Filebeat handles rotation, truncation, and
+# checkpointing (the registry) natively.
+
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - "${LOG_PATH:/cowrie/var/log/cowrie/cowrie.json}"
+    fields_under_root: true
+    fields:
+      log_type: "${LOG_TYPE:cowrie}"
+      sensor_id: "${SENSOR_ID:cowrie-prod-01}"
+    close_renamed: true
+    close_removed: true
+    clean_removed: true
+
+# Logstash owns normalization (one place), so no JSON parsing here.
+output.logstash:
+  hosts: ["${LOGSTASH_HOST:logstash:5044}"]
+
+logging.to_stderr: true
+monitoring.enabled: false

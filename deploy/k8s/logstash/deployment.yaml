@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash
+  namespace: openthreatgrid
+  labels:
+    app: logstash
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logstash
+  template:
+    metadata:
+      labels:
+        app: logstash
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: logstash
+          # Built from deploy/filebeat-logstash/logstash (logstash-oss:7.12.1 +
+          # opensearch output plugin + baked OTG pipeline).
+          image: ghcr.io/openthreatgrid/otg-logstash:main
+          imagePullPolicy: Always
+          ports:
+            - { containerPort: 5044, name: beats }
+          env:
+            - { name: LS_JAVA_OPTS, value: "-Xms512m -Xmx512m" }
+            - { name: XPACK_MONITORING_ENABLED, value: "false" }
+          resources:
+            requests: { cpu: "500m", memory: 1Gi }
+            limits:   { cpu: "1500m", memory: 1536Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            tcpSocket: { port: 5044 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  namespace: openthreatgrid
+  labels:
+    app: logstash
+spec:
+  selector:
+    app: logstash
+  ports:
+    - { port: 5044, targetPort: 5044, name: beats }
+---
+# Logstash: ingress from any sensor pod (Filebeat) on 5044; egress to OpenSearch + DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: logstash-allow
+  namespace: openthreatgrid
+spec:
+  podSelector:
+    matchLabels:
+      app: logstash
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { otg-role: sensor } }
+      ports:
+        - { protocol: TCP, port: 5044 }
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app: opensearch } }
+      ports:
+        - { protocol: TCP, port: 9200 }
+    - to:
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { k8s-app: kube-dns } }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }

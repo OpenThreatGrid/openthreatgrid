@@ -26,55 +26,34 @@ spec:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
 ---
-# API: ingress from worker/reports/traefik; egress to OpenSearch + Redis.
+# Logstash: ingress from any sensor pod (Filebeat) on 5044; egress to OpenSearch.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: otg-api-allow
+  name: logstash-allow
 spec:
   podSelector:
     matchLabels:
-      app: otg-api
+      app: logstash
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
-        - podSelector: { matchLabels: { app: otg-worker } }
-        - podSelector: { matchLabels: { app: otg-reports } }
-        - namespaceSelector: {}
-          podSelector: { matchLabels: { app.kubernetes.io/name: traefik } }
+        - podSelector: { matchLabels: { otg-role: sensor } }
       ports:
-        - { protocol: TCP, port: 8000 }
+        - { protocol: TCP, port: 5044 }
   egress:
     - to:
         - podSelector: { matchLabels: { app: opensearch } }
       ports:
         - { protocol: TCP, port: 9200 }
     - to:
-        - podSelector: { matchLabels: { app: redis } }
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { k8s-app: kube-dns } }
       ports:
-        - { protocol: TCP, port: 6379 }
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
 ---
-# Worker (consumer): egress to Redis + API.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: otg-worker-allow
-spec:
-  podSelector:
-    matchLabels:
-      app: otg-worker
-  policyTypes: [Egress]
-  egress:
-    - to:
-        - podSelector: { matchLabels: { app: redis } }
-      ports:
-        - { protocol: TCP, port: 6379 }
-    - to:
-        - podSelector: { matchLabels: { app: otg-api } }
-      ports:
-        - { protocol: TCP, port: 8000 }
----
-# OpenSearch: ingress from API + Dashboards only.
+# OpenSearch: ingress from Logstash (ingest), Dashboards, and reports (read).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -86,28 +65,11 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
-        - podSelector: { matchLabels: { app: otg-api } }
+        - podSelector: { matchLabels: { app: logstash } }
         - podSelector: { matchLabels: { app: opensearch-dashboards } }
+        - podSelector: { matchLabels: { app: otg-reports } }
       ports:
         - { protocol: TCP, port: 9200 }
----
-# Redis: ingress from Worker + Cowrie (parser sidecar) + API (/ready ping).
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: redis-allow
-spec:
-  podSelector:
-    matchLabels:
-      app: redis
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - podSelector: { matchLabels: { app: otg-worker } }
-        - podSelector: { matchLabels: { app: cowrie } }
-        - podSelector: { matchLabels: { app: otg-api } }
-      ports:
-        - { protocol: TCP, port: 6379 }
 ---
 # Dashboards: ingress from Traefik + the import hook; egress to OpenSearch + DNS.
 apiVersion: networking.k8s.io/v1
@@ -160,7 +122,7 @@ spec:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
 ---
-# CRITICAL: Cowrie has no outbound internet — only Redis (parser) + DNS.
+# CRITICAL: Cowrie has no outbound internet — only Logstash (Filebeat) + DNS.
 # Ingress allowed from Traefik for the honeypot ports.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -180,9 +142,9 @@ spec:
         - { protocol: TCP, port: 2223 }
   egress:
     - to:
-        - podSelector: { matchLabels: { app: redis } }
+        - podSelector: { matchLabels: { app: logstash } }
       ports:
-        - { protocol: TCP, port: 6379 }
+        - { protocol: TCP, port: 5044 }
     - to:
         - namespaceSelector: {}
           podSelector:
@@ -193,7 +155,7 @@ spec:
         - { protocol: TCP, port: 53 }
 {{- if .Values.reports.enabled }}
 ---
-# Report generator: egress to the API only.
+# Report generator: egress to OpenSearch (read) + DNS.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -205,9 +167,9 @@ spec:
   policyTypes: [Egress]
   egress:
     - to:
-        - podSelector: { matchLabels: { app: otg-api } }
+        - podSelector: { matchLabels: { app: opensearch } }
       ports:
-        - { protocol: TCP, port: 8000 }
+        - { protocol: TCP, port: 9200 }
     - to:
         - namespaceSelector: {}
           podSelector: { matchLabels: { k8s-app: kube-dns } }
