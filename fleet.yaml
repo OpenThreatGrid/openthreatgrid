@@ -19,7 +19,7 @@ helm:
   values:
     image:
       registry: ghcr.io/openthreatgrid
-      tag: sha-4f9534b
+      tag: sha-67f70df
     cowrie:
       enabled: true
       sensorId: cowrie-prod-01
